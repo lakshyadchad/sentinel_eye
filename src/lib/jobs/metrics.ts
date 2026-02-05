@@ -14,17 +14,16 @@ export function isHighSeverityJob(job: JobHistoryItem) {
   if (!job.results_summary) return false;
   const summary = job.results_summary;
   return (
-    summary.deforestation_km2 >= 300 ||
-    summary.urban_expansion_km2 >= 50 ||
-    summary.encroachment_km2 >= 30 ||
-    summary.total_area_changed_km2 >= 400
+    (summary.deforestation_km2 ?? 0) >= 300 ||
+    (summary.urban_expansion_km2 ?? 0) >= 50 ||
+    (summary.encroachment_km2 ?? 0) >= 30 ||
+    (summary.total_area_changed_km2 ?? 0) >= 400
   );
 }
 
 export function computeDashboardStats(jobs: JobHistoryItem[]) {
   const completed = jobs.filter(isCompletedJob);
   const totalScans = completed.length;
-
   const activeThreats = completed.filter(isHighSeverityJob).length;
 
   const areaMonitoredKm2 = completed.reduce(

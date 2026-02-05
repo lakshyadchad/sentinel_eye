@@ -9,7 +9,12 @@ import {
   Upload,
   Cpu,
 } from "lucide-react";
-import type { AnalysisProgress } from "@/hooks/useAnalyzeRegion";
+
+// Define the type inline instead of importing
+interface AnalysisProgress {
+  stage: string;
+  message: string;
+}
 
 interface ScanProgressLogProps {
   loading: boolean;
