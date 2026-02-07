@@ -105,7 +105,7 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-6">
             <Link
-              href="/dashboard"
+              href="/analysis"
               className="relative px-6 py-2.5 text-sm font-medium bg-white/90 text-black hover:bg-white rounded-lg transition-all backdrop-blur-sm"
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -184,7 +184,7 @@ export default function LandingPage() {
             className="flex flex-wrap items-center justify-center gap-4"
           >
             <Link
-              href="/dashboard"
+              href="/analysis"
               className="relative px-8 py-4 font-medium bg-white text-black hover:bg-slate-200 rounded-lg transition-all shadow-lg"
             >
               <span className="relative z-10 flex items-center gap-2">
@@ -602,10 +602,10 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
-                href="/dashboard"
+                href="/analysis"
                 className="px-8 py-4 font-medium bg-slate-600 hover:bg-slate-500 rounded-lg transition-all shadow-lg shadow-slate-600/20"
               >
-                Start Free Trial
+                Start 
               </Link>
               <Link
                 href="#research"

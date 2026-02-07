@@ -80,14 +80,12 @@ export default function MapAnalysisPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      <header className="sticky top-[80px] z-[50] bg-background/80 backdrop-blur-md border-b border-border/50">
-        <div className="container mx-auto px-6 py-4">
-          <AnalysisHeader />
-        </div>
-      </header>
+    <div className="text-foreground transition-colors duration-300">
+      <div className="container mx-auto px-6 py-4">
+        <AnalysisHeader />
+      </div>
 
-      <main className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-6">
             <Card className="p-4 rounded-2xl border border-border shadow-sm">
@@ -293,7 +291,7 @@ export default function MapAnalysisPage() {
             </Card>
           </aside>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
