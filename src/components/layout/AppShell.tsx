@@ -27,9 +27,9 @@ import {
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { name: "Map Analysis", href: "/analysis", icon: Map },
-  { name: "Scan Result", href: "/scan-result", icon: FileSearch },
-  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Map Insights", href: "/analysis", icon: Map },
+  { name: "Result", href: "/scan-result", icon: FileSearch },
+  { name: "Analysis", href: "/dashboard", icon: LayoutDashboard },
   { name: "Data Logs", href: "/data-logs", icon: Database },
   { name: "Alerts Centre", href: "/alerts", icon: Siren },
 ];
