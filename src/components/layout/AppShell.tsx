@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,14 +37,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [fontSize, setFontSize] = useState(100);
 
-  // Hover pill state
+  // Hover pill
   const [hoverStyle, setHoverStyle] = useState<{
     left: number;
     width: number;
     opacity: number;
   }>({ left: 0, width: 0, opacity: 0 });
 
-  // Active underline state
+  // Active underline
   const [activeStyle, setActiveStyle] = useState<{
     left: number;
     width: number;
@@ -65,7 +64,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     [pathname]
   );
 
-  // Position the active underline on mount and route change
+  // Set active underline position
   useEffect(() => {
     const activeIndex = navItems.findIndex((item) => isActive(item.href));
     if (activeIndex !== -1 && navRef.current) {
@@ -108,7 +107,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setHoverStyle((prev) => ({ ...prev, opacity: 0 }));
   };
 
-  // Don't show AppShell on landing page
   if (pathname === "/") {
     return <>{children}</>;
   }
@@ -137,7 +135,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
           <div className="flex-1" />
 
-          {/* Controls */}
+          {/* Controls – unchanged position */}
           <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/40">
               <button
@@ -165,7 +163,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
             </div>
 
-            {/* User Dropdown */}
+            {/* User Dropdown – unchanged */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -209,16 +207,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Bottom row: Navigation tabs (Vercel-style) */}
-        <div className="px-6">
+        {/* Bottom row: Navigation tabs – Vercel-style hover pill */}
+        <div className="px-6 border-t border-border/50">
           <nav
             ref={navRef}
-            className="relative flex items-center gap-1"
+            className="relative flex items-center gap-1 h-12 -mx-1"
             onMouseLeave={handleMouseLeave}
           >
-            {/* Hover pill (animated background) */}
+            {/* Hover pill – more Vercel-like (softer, slightly taller, better rounding) */}
             <div
-              className="absolute top-0 h-10 rounded-md bg-accent transition-all duration-200 ease-out pointer-events-none"
+              className="absolute top-1.5 h-9 rounded-full bg-accent/70 dark:bg-muted/70 transition-all duration-200 ease-out pointer-events-none shadow-sm"
               style={{
                 left: hoverStyle.left,
                 width: hoverStyle.width,
@@ -238,13 +236,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     itemRefs.current[index] = el;
                   }}
                   onMouseEnter={() => handleMouseEnter(index)}
-                  className={[
-                    "relative flex items-center gap-2 px-3 py-2 text-sm font-medium transition-colors duration-150 rounded-md z-10",
-                    "focus:outline-none focus:ring-2 focus:ring-primary/30",
-                    active
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  ].join(" ")}
+                  className={`
+                    relative flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full z-10
+                    transition-colors duration-150
+                    focus:outline-none focus:ring-2 focus:ring-primary/30
+                    ${
+                      active
+                        ? "text-foreground font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }
+                  `}
                 >
                   <Icon size={16} className="flex-shrink-0" />
                   <span>{item.name}</span>
@@ -252,9 +253,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
 
-            {/* Active underline indicator */}
+            {/* Active underline – thin primary line */}
             <div
-              className="absolute bottom-0 h-[2px] bg-primary transition-all duration-300 ease-out pointer-events-none"
+              className="absolute bottom-0 h-[2.5px] bg-primary transition-all duration-300 ease-out pointer-events-none rounded-full"
               style={{
                 left: activeStyle.left,
                 width: activeStyle.width,
