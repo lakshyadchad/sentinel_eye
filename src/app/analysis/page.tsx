@@ -1,5 +1,4 @@
 "use client";
-
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -19,14 +18,6 @@ import type { ChangeType } from "@/types/jobs";
 import { getTileCenterById } from "@/hooks/sentinel2-rondonia-tiles";
 
 const YEAR_OPTIONS = [2020, 2021, 2022, 2023, 2024];
-const LOCATIONS = [
-  { label: "Porto Velho (Capital)", lat: -8.76, lon: -63.9 },
-  { label: "Ji-Parana", lat: -10.88, lon: -61.95 },
-  { label: "Ariquemes", lat: -9.91, lon: -63.04 },
-  { label: "Cacoal", lat: -11.44, lon: -61.45 },
-  { label: "Vilhena", lat: -12.74, lon: -60.15 },
-  { label: "Pacaas Novos National Park", lat: -10.5, lon: -63.5 },
-];
 
 export default function MapAnalysisPage() {
   const router = useRouter();
@@ -37,18 +28,19 @@ export default function MapAnalysisPage() {
     lat: -10.0,
     lon: -63.0,
   });
+
   const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>({
     lat: -10.0,
     lon: -63.0,
   });
+
   const [startYear, setStartYear] = useState(2021);
   const [endYear, setEndYear] = useState(2024);
   const [changeTypes, setChangeTypes] = useState<ChangeType[]>([
     "deforestation",
     "urban_expansion",
   ]);
-  const [selectedLocation, setSelectedLocation] = useState("custom");
 
   const canSubmit =
     selectedTileIds.length > 0 && changeTypes.length > 0 && endYear >= startYear;
@@ -67,7 +59,6 @@ export default function MapAnalysisPage() {
     if (!canSubmit || loading) return;
 
     const centerFromTile = getTileCenterById(selectedTileIds[0]);
-
     const res = await run({
       tile_ids: selectedTileIds,
       coordinates: centerFromTile ?? coordinates,
@@ -88,50 +79,15 @@ export default function MapAnalysisPage() {
       <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-6">
-            <Card className="p-4 rounded-2xl border border-border shadow-sm">
-              <div className="flex flex-col gap-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
-                  Popular Locations
-                </p>
-                <Select
-                  value={selectedLocation}
-                  onValueChange={(value) => {
-                    setSelectedLocation(value);
-                    if (value === "custom") return;
-                    const match = LOCATIONS.find((item) => item.label === value);
-                    if (!match) return;
-                    const next = { lat: match.lat, lon: match.lon };
-                    setCoordinates(next);
-                    setMapCenter(next);
-                  }}
-                >
-                  <SelectTrigger className="w-full rounded-xl bg-background">
-                    <SelectValue placeholder="Select a location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LOCATIONS.map((loc) => (
-                      <SelectItem key={loc.label} value={loc.label}>
-                        {loc.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">Custom (tile selection)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </Card>
-
             <LeafletMapSelector
               selectedTileIds={selectedTileIds}
               onTileSelectionChange={(nextIds) => {
                 setSelectedTileIds(nextIds);
-
                 const center = nextIds.length > 0 ? getTileCenterById(nextIds[0]) : null;
                 if (center) {
                   setCoordinates(center);
                   setMapCenter(center);
                 }
-
-                setSelectedLocation("custom");
               }}
               center={mapCenter}
             />
@@ -188,6 +144,7 @@ export default function MapAnalysisPage() {
                         ))}
                       </SelectContent>
                     </Select>
+
                     <Select
                       value={String(endYear)}
                       onValueChange={(value) => setEndYear(Number(value))}
@@ -204,6 +161,7 @@ export default function MapAnalysisPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   {endYear < startYear && (
                     <p className="text-xs text-red-500 mt-2">
                       End year must be greater than or equal to start year.
@@ -281,7 +239,7 @@ export default function MapAnalysisPage() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         {job.tile_ids && job.tile_ids.length > 0
                           ? job.tile_ids.join(", ")
-                          : `${job.coordinates.lat.toFixed(2)}, ${job.coordinates.lon.toFixed(2)}`} {" "}
+                          : `${job.coordinates.lat.toFixed(2)}, ${job.coordinates.lon.toFixed(2)}`}{" "}
                         • {job.start_year}→{job.end_year}
                       </div>
                     </button>
