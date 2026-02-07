@@ -66,8 +66,20 @@ export interface JobStatusResponse {
   tile_ids?: string[];
   start_year?: number;
   end_year?: number;
+  change_types?: Record<string, number>;
+  changes_by_type?: Record<string, number>;
+  total_changes?: number;
   results?: {
     files?: Record<string, string>;
+    change_types?: Record<string, number>;
+    changes_by_type?: Record<string, number>;
+    total_changes?: number;
+    statistics?: {
+      deforestation_km2?: number;
+      deforestation_pct?: number;
+      urban_expansion_km2?: number;
+      urban_expansion_pct?: number;
+    };
   };
 }
 
@@ -86,6 +98,7 @@ export interface JobResultsResponse {
   status: "COMPLETED" | "Completed";
   coordinates: { lat: number; lon: number };
   tile_ids?: string[];
+  change_types?: Record<string, number>;
   statistics: {
     deforestation_area_km2?: number;
     urban_expansion_km2?: number;
@@ -95,6 +108,7 @@ export interface JobResultsResponse {
   changes_by_type: {
     deforestation: number;
     urban: number;
+    urban_expansion?: number;
     encroachment: number;
   };
   top_changes: Array<{

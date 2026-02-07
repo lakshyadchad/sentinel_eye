@@ -35,6 +35,8 @@ export default function ScanResultClient() {
     resultImageUrl,
     isFetchingImage,
     refetchImage,
+    changeMetrics,
+    summaryStatistics,
     availableFileTypes,
     downloadFile,
   } = useJobPolling(jobId);
@@ -45,6 +47,15 @@ export default function ScanResultClient() {
     if (!jobId) return null;
     return history.find((job) => job.job_id === jobId) ?? null;
   }, [history, jobId]);
+
+  const visibleDownloadFiles = useMemo(
+    () =>
+      availableFileTypes.filter((file) => {
+        const key = file.type.toLowerCase();
+        return key !== "deforestation" && key !== "urban_expansion";
+      }),
+    [availableFileTypes],
+  );
 
   if (!jobId) {
     return (
@@ -120,12 +131,36 @@ export default function ScanResultClient() {
           changeTypes={jobFromHistory?.change_types}
           submittedAt={jobFromHistory?.created_at}
           completedAt={jobFromHistory?.updated_at}
-          totalChanges={0}
-          changesByType={{ deforestation: 0, urban: 0, encroachment: 0 }}
+          totalChanges={changeMetrics.totalChanges}
+          changesByType={changeMetrics.changesByType}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-8">
+            {isCompleted && summaryStatistics && (
+              <Card className="p-5 rounded-2xl border border-border mb-6">
+                <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-3">
+                  Land-Use Statistics
+                </p>
+                <div className="space-y-2 text-sm">
+                  <p>
+                    Deforestation:{" "}
+                    <span className="font-semibold">
+                      {summaryStatistics.deforestationKm2.toFixed(2)} km2
+                    </span>{" "}
+                    ({summaryStatistics.deforestationPct.toFixed(2)}%)
+                  </p>
+                  <p>
+                    Urban Growth:{" "}
+                    <span className="font-semibold">
+                      {summaryStatistics.urbanExpansionKm2.toFixed(2)} km2
+                    </span>{" "}
+                    ({summaryStatistics.urbanExpansionPct.toFixed(2)}%)
+                  </p>
+                </div>
+              </Card>
+            )}
+
             <Card className="p-5 rounded-2xl border border-border">
               <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-4">
                 Analysis Visualization
@@ -152,23 +187,31 @@ export default function ScanResultClient() {
                 Downloads
               </p>
               <div className="flex flex-col gap-3">
-                {availableFileTypes.map((file) => (
-                  <Button
-                    key={file.type}
-                    variant="outline"
-                    disabled={!isCompleted || downloadingType === file.type}
-                    onClick={async () => {
-                      try {
-                        setDownloadingType(file.type);
-                        await downloadFile(file.type);
-                      } finally {
-                        setDownloadingType(null);
-                      }
-                    }}
-                  >
-                    {downloadingType === file.type ? `Loading ${file.label}...` : file.label}
-                  </Button>
-                ))}
+                {visibleDownloadFiles.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {isCompleted
+                      ? "No output files were returned for this job."
+                      : "Files will appear after completion."}
+                  </p>
+                ) : (
+                  visibleDownloadFiles.map((file) => (
+                    <Button
+                      key={file.type}
+                      variant="outline"
+                      disabled={!isCompleted || downloadingType === file.type}
+                      onClick={async () => {
+                        try {
+                          setDownloadingType(file.type);
+                          await downloadFile(file.type, file.sourceUrl);
+                        } finally {
+                          setDownloadingType(null);
+                        }
+                      }}
+                    >
+                      {downloadingType === file.type ? `Loading ${file.label}...` : file.label}
+                    </Button>
+                  ))
+                )}
               </div>
               <p className="mt-3 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 Download links are generated on demand and expire.
@@ -180,4 +223,3 @@ export default function ScanResultClient() {
     </div>
   );
 }
-

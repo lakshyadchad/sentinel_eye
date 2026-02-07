@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import type { AnalyzeRequest, AnalyzeResponse } from "@/types/jobs";
@@ -35,8 +35,14 @@ export function useAnalyzeRegion() {
 
       return res;
     } catch (e: unknown) {
-      const errorMessage =
-        e instanceof Error ? e.message : "Something went wrong during analysis";
+      let errorMessage: string;
+      if (e instanceof Error) {
+        errorMessage = e.message;
+      } else if (typeof e === "string") {
+        errorMessage = e;
+      } else {
+        errorMessage = "Something went wrong during analysis";
+      }
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {

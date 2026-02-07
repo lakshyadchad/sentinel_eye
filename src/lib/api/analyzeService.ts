@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   AnalyzeRequest,
   AnalyzeResponse,
   GenerateDownloadRequest,
@@ -74,31 +74,47 @@ export async function submitAnalysis(
 ): Promise<AnalyzeResponse> {
   const headers = { "Content-Type": "application/json" };
 
+  if (!payload.tile_id) {
+    throw new Error("Validation failed: tile_id is required but was not provided");
+  }
+
+  const normalizedPayload = {
+    tile_id: payload.tile_id,
+    start_year: payload.start_year,
+    end_year: payload.end_year,
+    change_types: payload.change_types,
+  };
+
+  const attempts: Array<{ endpoint: string; status?: number; error: string }> = [];
+
   try {
     const newRes = await requestWithFallback(["/api/analyze-region", "/analyze-region"], {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        tile_id: payload.tile_id,
-        start_year: payload.start_year,
-        end_year: payload.end_year,
-        change_types: payload.change_types,
-      }),
+      body: JSON.stringify(normalizedPayload),
     });
     return newRes.json();
-  } catch {
-    const legacyRes = await requestWithFallback(["/api/analyze", "/analyze"], {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        tile_ids: payload.tile_ids || [payload.tile_id],
-        coordinates: payload.coordinates,
-        start_year: payload.start_year,
-        end_year: payload.end_year,
-        change_types: payload.change_types,
-      }),
-    });
-    return legacyRes.json();
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    attempts.push({ endpoint: "/api/analyze-region", error: errorMsg });
+
+    try {
+      const legacyRes = await requestWithFallback(["/api/analyze", "/analyze"], {
+        method: "POST",
+        headers,
+        body: JSON.stringify(normalizedPayload),
+      });
+      return legacyRes.json();
+    } catch (err2) {
+      const errorMsg2 = err2 instanceof Error ? err2.message : String(err2);
+      attempts.push({ endpoint: "/api/analyze", error: errorMsg2 });
+
+      throw new Error(
+        `Analysis submission failed to all endpoints. ` +
+        `Primary (${attempts[0].endpoint}): ${attempts[0].error}. ` +
+        `Fallback (${attempts[1].endpoint}): ${attempts[1].error}`
+      );
+    }
   }
 }
 
@@ -130,4 +146,25 @@ export async function generateDownloadUrl(
     }
     return { download_url: url, expires_in: 3600 };
   }
+}
+
+export async function getSummaryStatistics(jobId: string): Promise<{
+  deforestation_km2?: number;
+  deforestation_pct?: number;
+  urban_expansion_km2?: number;
+  urban_expansion_pct?: number;
+} | null> {
+  const res = await fetch(`/api/summary-stats/${jobId}`);
+  if (!res.ok) {
+    return null;
+  }
+  const data = (await res.json()) as {
+    statistics?: {
+      deforestation_km2?: number;
+      deforestation_pct?: number;
+      urban_expansion_km2?: number;
+      urban_expansion_pct?: number;
+    } | null;
+  };
+  return data.statistics ?? null;
 }

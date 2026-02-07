@@ -54,9 +54,8 @@ export default function MapAnalysisPage() {
   const { run, loading, error } = useAnalyzeRegion();
   const { history } = useJobHistory();
 
-  const [tiles, setTiles] = useState<TileInfo[]>([]);
-  const [tilesError, setTilesError] = useState<string | null>(null);
-  const [tilesLoading, setTilesLoading] = useState(true);
+  const [tiles, setTiles] = useState<TileInfo[]>(() => getFallbackTiles());
+  const [tilesLoading, setTilesLoading] = useState(false);
 
   const [selectedTileId, setSelectedTileId] = useState<string>("");
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>({
@@ -77,15 +76,13 @@ export default function MapAnalysisPage() {
     const loadTiles = async () => {
       try {
         setTilesLoading(true);
-        setTilesError(null);
         const data = await getTiles();
         if (!mounted) return;
-        setTiles(data.tiles || []);
+        if (Array.isArray(data.tiles) && data.tiles.length > 0) {
+          setTiles(data.tiles);
+        }
       } catch {
-        if (!mounted) return;
-        const fallbackTiles = getFallbackTiles();
-        setTiles(fallbackTiles);
-        setTilesError("Tile API unavailable. Using local fallback tiles.");
+        // Keep local tiles silently if API tiles are unavailable in this deployment.
       } finally {
         if (mounted) setTilesLoading(false);
       }
@@ -189,9 +186,6 @@ export default function MapAnalysisPage() {
                     </p>
                   )}
 
-                  {tilesError && (
-                    <p className="text-xs text-amber-500 mt-2">{tilesError}</p>
-                  )}
                   {!selectedTile && !tilesLoading && (
                     <p className="text-xs text-red-500 mt-2">Select a tile.</p>
                   )}
