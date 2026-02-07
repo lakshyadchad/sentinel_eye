@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 
 const LeafletMapSelectorClient = dynamic(
   () => import("./LeafletMapSelectorClient"),
-  { ssr: false },
+  { ssr: false }
 );
 
 export default function LeafletMapSelector(props: {
