@@ -63,6 +63,13 @@ export default function LandingPage() {
       link: "https://arxiv.org/abs/2601.14637",
       badge: "VLM",
     },
+    {
+      title: "Urban Area Evolution and Land Surface Temperature Using NDBI",
+      description:
+        "Cross-Continental Evaluation of Urban Expansion and LST Dynamics",
+      link: "https://www.alphaxiv.org/abs/2401.03005",
+      badge: "VLM",
+    },
   ];
 
   const stats = [

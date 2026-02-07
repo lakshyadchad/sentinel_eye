@@ -39,6 +39,13 @@ const papers = [
       "Adapting Vision-Language Agents for Interactive Forest Change Analysis (Forest-Chat).",
     link: "https://arxiv.org/abs/2601.14637",
   },
+  {
+      title: "6) Urban Area Evolution and Land Surface Temperature Using NDBI",
+      description:
+        "Cross-Continental Evaluation of Urban Expansion and LST Dynamics",
+      link: "https://www.alphaxiv.org/abs/2401.03005",
+     
+    },
 ];
 
 export default function ResearchPapersModal({ open, onClose }: Props) {

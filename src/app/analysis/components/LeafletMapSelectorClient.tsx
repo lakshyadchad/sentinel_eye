@@ -1,5 +1,4 @@
 "use client";
-
 import "leaflet/dist/leaflet.css";
 import {
   MapContainer,
@@ -10,14 +9,16 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import type { LatLngLiteral } from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const DEFAULT_CENTER: LatLngLiteral = { lat: -10.5, lng: -63.0 };
 
-const satelliteUrl =
-  "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+// Sentinel-2 Cloudless mosaic by EOX — true 10m resolution satellite imagery
+const sentinel2Url =
+  "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg";
 const streetsUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const terrainUrl = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
+
 const RONDONIA_BOUNDS: [[number, number], [number, number]] = [
   [-13.5, -66.5],
   [-8.0, -59.5],
@@ -36,14 +37,12 @@ function MapPanTo({ center }: { center?: { lat: number; lon: number } | null }) 
   const map = useMap();
   const lat = center?.lat;
   const lon = center?.lon;
-
   useEffect(() => {
     if (!center) return;
     map.setView({ lat: center.lat, lng: center.lon }, map.getZoom(), {
       animate: true,
     });
   }, [lat, lon, map, center]);
-
   return null;
 }
 
@@ -100,21 +99,24 @@ export default function LeafletMapSelectorClient({
         </div>
         <span className="text-[10px] text-primary font-bold">LIVE</span>
       </div>
-
       <div style={{ height }} className="relative z-0">
         <MapContainer
           center={DEFAULT_CENTER}
           zoom={7}
           minZoom={6}
-          maxZoom={18}
+          maxZoom={15}
           maxBounds={RONDONIA_BOUNDS}
           maxBoundsViscosity={0.8}
           scrollWheelZoom
           className="h-full w-full z-0"
         >
           <LayersControl position="topright">
-            <LayersControl.BaseLayer checked name="Satellite">
-              <TileLayer url={satelliteUrl} />
+            <LayersControl.BaseLayer checked name="Sentinel-2 (10m)">
+              <TileLayer
+                url={sentinel2Url}
+                maxZoom={15}
+                attribution='&copy; <a href="https://s2maps.eu">Sentinel-2 cloudless</a> by <a href="https://eox.at">EOX</a>'
+              />
             </LayersControl.BaseLayer>
             <LayersControl.BaseLayer name="Streets">
               <TileLayer url={streetsUrl} />
@@ -123,14 +125,12 @@ export default function LeafletMapSelectorClient({
               <TileLayer url={terrainUrl} />
             </LayersControl.BaseLayer>
           </LayersControl>
-
           <ClickHandler
             onPick={(picked) =>
               onChange({ lat: picked.lat, lon: picked.lng })
             }
           />
           <MapPanTo center={center} />
-
           {markerPosition && icon && (
             <Marker position={markerPosition} icon={icon} />
           )}
