@@ -7,7 +7,7 @@ export function getJobDate(job: JobHistoryItem) {
 }
 
 export function isCompletedJob(job: JobHistoryItem) {
-  return job.status === "Completed" && !!job.results_summary;
+  return String(job.status).toUpperCase() === "COMPLETED" && !!job.results_summary;
 }
 
 export function isHighSeverityJob(job: JobHistoryItem) {

@@ -1,5 +1,6 @@
-"use client";
-import { useMemo, useState } from "react";
+﻿"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,22 +15,50 @@ import AnalysisHeader from "./components/AnalysisHeader";
 import LeafletMapSelector from "./components/LeafletMapSelector";
 import { useAnalyzeRegion } from "@/hooks/useAnalyzeRegion";
 import { useJobHistory } from "@/hooks/useJobHistory";
-import type { ChangeType } from "@/types/jobs";
-import { getTileCenterById } from "@/hooks/sentinel2-rondonia-tiles";
+import { getTiles } from "@/lib/api/analyzeService";
+import type { ChangeType, TileInfo } from "@/types/jobs";
+import { SENTINEL2_TILES_RONDONIA } from "@/hooks/sentinel2-rondonia-tiles";
 
 const YEAR_OPTIONS = [2020, 2021, 2022, 2023, 2024];
+
+function getFallbackTiles(): TileInfo[] {
+  return SENTINEL2_TILES_RONDONIA.features
+    .map((feature, index) => {
+      const tileId = feature.properties?.id;
+      if (!tileId || feature.geometry.type !== "Polygon") return null;
+      const ring = feature.geometry.coordinates[0];
+      if (!ring || ring.length === 0) return null;
+
+      const longitudes = ring.map((point) => point[0]);
+      const latitudes = ring.map((point) => point[1]);
+      const min_lon = Math.min(...longitudes);
+      const max_lon = Math.max(...longitudes);
+      const min_lat = Math.min(...latitudes);
+      const max_lat = Math.max(...latitudes);
+
+      return {
+        tile_id: tileId,
+        name: `Tile ${String(index + 1).padStart(2, "0")} - ${tileId}`,
+        center: {
+          lat: (min_lat + max_lat) / 2,
+          lon: (min_lon + max_lon) / 2,
+        },
+        bbox: { min_lon, min_lat, max_lon, max_lat },
+      } satisfies TileInfo;
+    })
+    .filter((tile): tile is TileInfo => Boolean(tile));
+}
 
 export default function MapAnalysisPage() {
   const router = useRouter();
   const { run, loading, error } = useAnalyzeRegion();
   const { history } = useJobHistory();
 
-  const [coordinates, setCoordinates] = useState<{ lat: number; lon: number }>({
-    lat: -10.0,
-    lon: -63.0,
-  });
+  const [tiles, setTiles] = useState<TileInfo[]>([]);
+  const [tilesError, setTilesError] = useState<string | null>(null);
+  const [tilesLoading, setTilesLoading] = useState(true);
 
-  const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
+  const [selectedTileId, setSelectedTileId] = useState<string>("");
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>({
     lat: -10.0,
     lon: -63.0,
@@ -42,9 +71,38 @@ export default function MapAnalysisPage() {
     "urban_expansion",
   ]);
 
-  const canSubmit =
-    selectedTileIds.length > 0 && changeTypes.length > 0 && endYear >= startYear;
+  useEffect(() => {
+    let mounted = true;
 
+    const loadTiles = async () => {
+      try {
+        setTilesLoading(true);
+        setTilesError(null);
+        const data = await getTiles();
+        if (!mounted) return;
+        setTiles(data.tiles || []);
+      } catch {
+        if (!mounted) return;
+        const fallbackTiles = getFallbackTiles();
+        setTiles(fallbackTiles);
+        setTilesError("Tile API unavailable. Using local fallback tiles.");
+      } finally {
+        if (mounted) setTilesLoading(false);
+      }
+    };
+
+    loadTiles();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const selectedTile = useMemo(
+    () => tiles.find((tile) => tile.tile_id === selectedTileId) || null,
+    [tiles, selectedTileId],
+  );
+
+  const canSubmit = !!selectedTile && changeTypes.length > 0 && endYear >= startYear;
   const recentJobs = useMemo(() => history.slice(0, 6), [history]);
 
   const toggleChangeType = (value: ChangeType) => {
@@ -55,13 +113,21 @@ export default function MapAnalysisPage() {
     );
   };
 
-  const handleSubmit = async () => {
-    if (!canSubmit || loading) return;
+  const handleTileSelect = (tileId: string) => {
+    setSelectedTileId(tileId);
+    const tile = tiles.find((item) => item.tile_id === tileId);
+    if (tile) {
+      setMapCenter(tile.center);
+    }
+  };
 
-    const centerFromTile = getTileCenterById(selectedTileIds[0]);
+  const handleSubmit = async () => {
+    if (!selectedTile || !canSubmit || loading) return;
+
     const res = await run({
-      tile_ids: selectedTileIds,
-      coordinates: centerFromTile ?? coordinates,
+      tile_id: selectedTile.tile_id,
+      tile_ids: [selectedTile.tile_id],
+      coordinates: selectedTile.center,
       start_year: startYear,
       end_year: endYear,
       change_types: changeTypes,
@@ -80,47 +146,54 @@ export default function MapAnalysisPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-6">
             <LeafletMapSelector
-              selectedTileIds={selectedTileIds}
-              onTileSelectionChange={(nextIds) => {
-                setSelectedTileIds(nextIds);
-                const center = nextIds.length > 0 ? getTileCenterById(nextIds[0]) : null;
-                if (center) {
-                  setCoordinates(center);
-                  setMapCenter(center);
-                }
-              }}
-              center={mapCenter}
+              tiles={tiles}
+              selectedTileId={selectedTileId}
+              onTileSelect={handleTileSelect}
+              center={selectedTile?.center ?? mapCenter}
             />
 
             <Card className="p-6 rounded-2xl border border-border shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">
-                    Selected Tile IDs
+                    Sentinel-2 Tile
                   </p>
-                  <div className="mt-3 min-h-16 rounded-xl border border-border bg-muted/30 p-3">
-                    {selectedTileIds.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">
-                        Click one or more Sentinel-2 grid tiles on the map.
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {selectedTileIds.map((tileId) => (
-                          <span
-                            key={tileId}
-                            className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
-                          >
-                            {tileId}
-                          </span>
+                  <div className="mt-3">
+                    <Select
+                      value={selectedTileId}
+                      onValueChange={handleTileSelect}
+                      disabled={tilesLoading || tiles.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={tilesLoading ? "Loading tiles..." : "Select a tile"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {tiles.map((tile) => (
+                          <SelectItem key={tile.tile_id} value={tile.tile_id}>
+                            {tile.name}
+                          </SelectItem>
                         ))}
-                      </div>
-                    )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Click a tile again to remove it. The analysis request sends these tile IDs.
-                  </p>
-                  {selectedTileIds.length === 0 && (
-                    <p className="text-xs text-red-500 mt-2">Select at least one tile ID.</p>
+
+                  {selectedTile ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Selected: {selectedTile.tile_id}. You can also click a tile directly on the map.
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Choose one tile from dropdown or map.
+                    </p>
+                  )}
+
+                  {tilesError && (
+                    <p className="text-xs text-amber-500 mt-2">{tilesError}</p>
+                  )}
+                  {!selectedTile && !tilesLoading && (
+                    <p className="text-xs text-red-500 mt-2">Select a tile.</p>
                   )}
                 </div>
 
@@ -200,7 +273,7 @@ export default function MapAnalysisPage() {
 
               <div className="mt-6 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="text-xs text-muted-foreground">
-                  Submit to backend job queue. Results will appear once the job completes.
+                  Select tile, years, and change types. Backend processing starts after submission.
                 </div>
                 <Button disabled={!canSubmit || loading} onClick={handleSubmit} className="px-6">
                   {loading ? "Submitting..." : "Submit Analysis"}
@@ -239,8 +312,9 @@ export default function MapAnalysisPage() {
                       <div className="mt-2 text-xs text-muted-foreground">
                         {job.tile_ids && job.tile_ids.length > 0
                           ? job.tile_ids.join(", ")
-                          : `${job.coordinates.lat.toFixed(2)}, ${job.coordinates.lon.toFixed(2)}`}{" "}
-                        • {job.start_year}→{job.end_year}
+                          : `${job.coordinates.lat.toFixed(2)}, ${job.coordinates.lon.toFixed(2)}`} 
+                        {" - "}
+                        {job.start_year} to {job.end_year}
                       </div>
                     </button>
                   ))
@@ -253,3 +327,4 @@ export default function MapAnalysisPage() {
     </div>
   );
 }
+
