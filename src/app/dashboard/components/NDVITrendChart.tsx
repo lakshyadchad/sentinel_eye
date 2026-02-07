@@ -28,10 +28,10 @@ const MONTHS = [
 
 function buildSeries() {
   const now = new Date();
-  const series: { month: string; changes: number }[] = [];
+  const series: { month: string; value: number }[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    series.push({ month: MONTHS[d.getMonth()], changes: 0 });
+    series.push({ month: MONTHS[d.getMonth()], value: 0 });
   }
   return series;
 }
@@ -45,7 +45,7 @@ export default function NDVITrendChart() {
     const cutoff = new Date(now.getFullYear(), now.getMonth() - 5, 1).getTime();
 
     history.forEach((job) => {
-      if (job.status !== "Completed" || !job.results_summary) return;
+      if (String(job.status).toUpperCase() !== "COMPLETED" || !job.results_summary) return;
       const ts = new Date(job.updated_at || job.created_at).getTime();
       if (Number.isNaN(ts) || ts < cutoff) return;
       const date = new Date(ts);
@@ -53,14 +53,17 @@ export default function NDVITrendChart() {
       const label = MONTHS[monthIndex];
       const bucket = series.find((s) => s.month === label);
       if (bucket) {
-        bucket.changes += job.results_summary.total_changes || 0;
+        bucket.value +=
+          job.results_summary.total_area_changed_km2 ||
+          job.results_summary.total_changes ||
+          0;
       }
     });
 
     return series;
   }, [history]);
 
-  const hasData = data.some((d) => d.changes > 0);
+  const hasData = data.some((d) => d.value > 0);
 
   return (
     <div
@@ -124,7 +127,7 @@ export default function NDVITrendChart() {
                 fill: "hsl(var(--muted-foreground))",
                 fontSize: 10,
               }}
-              tickFormatter={(v) => `${v}`}
+              tickFormatter={(v) => `${Number(v).toFixed(1)}`}
             />
 
             <Tooltip
@@ -141,7 +144,7 @@ export default function NDVITrendChart() {
 
             <Line
               type="monotone"
-              dataKey="changes"
+              dataKey="value"
               stroke="#10b981"
               strokeWidth={3}
               dot={{ r: 4 }}
@@ -153,7 +156,7 @@ export default function NDVITrendChart() {
 
       <p className="mt-4 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
         {hasData
-          ? "Derived from recent change activity"
+          ? "Derived from completed job area-change summaries (km2)"
           : "Historical trends coming soon"}
       </p>
     </div>

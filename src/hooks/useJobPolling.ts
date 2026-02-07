@@ -129,11 +129,14 @@ function buildChangeMetrics(
     resultsData?.statistics?.encroachment_km2 ??
     0;
 
+  const candidateTotalChanges = [
+    resultsData?.total_changes,
+    statusData.total_changes,
+    statusData.results?.total_changes,
+  ].find((value) => typeof value === "number" && value > 0);
+
   const totalChanges =
-    resultsData?.total_changes ??
-    statusData.total_changes ??
-    statusData.results?.total_changes ??
-    deforestation + urban + encroachment;
+    candidateTotalChanges ?? deforestation + urban + encroachment;
 
   return {
     totalChanges,
@@ -288,7 +291,41 @@ export function useJobPolling(jobId: string | null) {
           }
 
           setSummaryStatistics(resolvedStats);
-          setChangeMetrics(buildChangeMetrics(statusData, resultsData, resolvedStats));
+          const nextChangeMetrics = buildChangeMetrics(statusData, resultsData, resolvedStats);
+          setChangeMetrics(nextChangeMetrics);
+
+          const existingCompleted = getJobById(jobId);
+          const encroachmentKm2 = resultsData?.statistics?.encroachment_km2 ?? 0;
+          upsertJob({
+            job_id: statusData.job_id,
+            status: "COMPLETED",
+            progress: 100,
+            message: statusData.message || STATUS_MAP.COMPLETED.text,
+            coordinates:
+              statusData.coordinates ||
+              existingCompleted?.coordinates ||
+              { lat: 0, lon: 0 },
+            tile_ids:
+              statusData.tile_ids ||
+              (statusData.tile_id ? [statusData.tile_id] : undefined) ||
+              existingCompleted?.tile_ids ||
+              [],
+            start_year: statusData.start_year ?? existingCompleted?.start_year ?? 0,
+            end_year: statusData.end_year ?? existingCompleted?.end_year ?? 0,
+            change_types: existingCompleted?.change_types ?? [],
+            created_at: existingCompleted?.created_at ?? new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            results_summary: {
+              deforestation_km2: resolvedStats.deforestationKm2,
+              urban_expansion_km2: resolvedStats.urbanExpansionKm2,
+              encroachment_km2: encroachmentKm2,
+              total_area_changed_km2:
+                resolvedStats.deforestationKm2 +
+                resolvedStats.urbanExpansionKm2 +
+                encroachmentKm2,
+              total_changes: nextChangeMetrics.totalChanges,
+            },
+          });
 
           const files = Object.entries(fileMap).map(([fileType, sourceUrl]) => ({
             fileType,
