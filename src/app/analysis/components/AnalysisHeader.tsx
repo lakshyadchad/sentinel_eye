@@ -5,7 +5,7 @@ export default function AnalysisHeader() {
         Map Analysis
       </h1>
       <p className="text-xs sm:text-sm text-muted-foreground font-medium m-0 p-0">
-        Pick coordinates, choose years, and submit for change detection
+        Select tile IDs, choose years, and submit for change detection
       </p>
     </div>
   );

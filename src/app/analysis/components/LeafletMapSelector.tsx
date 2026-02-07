@@ -8,8 +8,8 @@ const LeafletMapSelectorClient = dynamic(
 );
 
 export default function LeafletMapSelector(props: {
-  value: { lat: number; lon: number } | null;
-  onChange: (value: { lat: number; lon: number }) => void;
+  selectedTileIds: string[];
+  onTileSelectionChange: (tileIds: string[]) => void;
   center?: { lat: number; lon: number } | null;
   height?: number;
 }) {

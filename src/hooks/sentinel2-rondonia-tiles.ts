@@ -1,63 +1,62 @@
 import { FeatureCollection } from "geojson";
 
 /**
- * APPROXIMATE Sentinel-2 tile footprints for Rondônia (UI / interaction use)
- * NOT for scientific analysis.
+ * Approximate Sentinel-2 tile footprints for Rondonia (UI interaction only).
  */
 export const SENTINEL2_TILES_RONDONIA: FeatureCollection = {
   type: "FeatureCollection",
   features: [
-    // ────────────── M BAND ──────────────
+    // M band
     tile("20MPS", box(-64, -8, -63, -9)),
     tile("20MQS", box(-63, -8, -62, -9)),
     tile("20MRS", box(-62, -8, -61, -9)),
     tile("21MTM", box(-61, -8, -60, -9)),
     tile("21MUM", box(-60, -8, -59, -9)),
 
-    // ────────────── L BAND (row 1) ──────────────
+    // L band row 1
     tile("20LPR", box(-65, -9, -64, -10)),
     tile("20LQR", box(-64, -9, -63, -10)),
     tile("20LRR", box(-63, -9, -62, -10)),
     tile("20LTL", box(-62, -9, -61, -10)),
     tile("20LUL", box(-61, -9, -60, -10)),
 
-    // ────────────── L BAND (row 2) ──────────────
+    // L band row 2
     tile("20LPQ", box(-65, -10, -64, -11)),
     tile("20LQQ", box(-64, -10, -63, -11)),
     tile("20LRQ", box(-63, -10, -62, -11)),
     tile("21LTK", box(-62, -10, -61, -11)),
 
-    // ────────────── L BAND (row 3) ──────────────
+    // L band row 3
     tile("20LPP", box(-65, -11, -64, -12)),
     tile("20LQP", box(-64, -11, -63, -12)),
     tile("20LRP", box(-63, -11, -62, -12)),
     tile("21LTJ", box(-62, -11, -61, -12)),
 
-    // ────────────── L BAND (row 4) ──────────────
+    // L band row 4
     tile("20LNN", box(-65, -12, -64, -13)),
     tile("20LPN", box(-64, -12, -63, -13)),
     tile("20LQN", box(-63, -12, -62, -13)),
     tile("20LRN", box(-62, -12, -61, -13)),
 
-    // ────────────── L BAND (row 5) ──────────────
+    // L band row 5
     tile("20LNM", box(-65, -13, -64, -14)),
     tile("20LPM", box(-64, -13, -63, -14)),
     tile("20LQM", box(-63, -13, -62, -14)),
     tile("20LRM", box(-62, -13, -61, -14)),
 
-    // ────────────── L BAND (row 6) ──────────────
+    // L band row 6
     tile("20LNL", box(-65, -14, -64, -15)),
     tile("20LPL", box(-64, -14, -63, -15)),
     tile("20LQL", box(-63, -14, -62, -15)),
     tile("20LRL", box(-62, -14, -61, -15)),
 
-    // ────────────── L BAND (row 7) ──────────────
+    // L band row 7
     tile("20LNK", box(-65, -15, -64, -16)),
     tile("20LPK", box(-64, -15, -63, -16)),
     tile("20LQK", box(-63, -15, -62, -16)),
     tile("20LRK", box(-62, -15, -61, -16)),
 
-    // ────────────── L BAND (row 8) ──────────────
+    // L band row 8
     tile("20LNJ", box(-65, -16, -64, -17)),
     tile("20LPJ", box(-64, -16, -63, -17)),
     tile("20LQJ", box(-63, -16, -62, -17)),
@@ -65,7 +64,32 @@ export const SENTINEL2_TILES_RONDONIA: FeatureCollection = {
   ],
 };
 
-/* ─────────────────────────────────────────────── */
+const TILE_CENTER_BY_ID = new Map<string, { lat: number; lon: number }>();
+
+for (const feature of SENTINEL2_TILES_RONDONIA.features) {
+  const id = feature.properties?.id;
+  if (!id || feature.geometry.type !== "Polygon") continue;
+
+  const ring = feature.geometry.coordinates[0];
+  if (!ring || ring.length === 0) continue;
+
+  const longitudes = ring.map((point) => point[0]);
+  const latitudes = ring.map((point) => point[1]);
+
+  const west = Math.min(...longitudes);
+  const east = Math.max(...longitudes);
+  const south = Math.min(...latitudes);
+  const north = Math.max(...latitudes);
+
+  TILE_CENTER_BY_ID.set(id, {
+    lat: (north + south) / 2,
+    lon: (east + west) / 2,
+  });
+}
+
+export function getTileCenterById(tileId: string): { lat: number; lon: number } | null {
+  return TILE_CENTER_BY_ID.get(tileId) ?? null;
+}
 
 function box(w: number, n: number, e: number, s: number): [number, number][] {
   return [
@@ -78,7 +102,7 @@ function box(w: number, n: number, e: number, s: number): [number, number][] {
 
 function tile(
   id: string,
-  corners: [number, number][]
+  corners: [number, number][],
 ): GeoJSON.Feature<GeoJSON.Polygon> {
   return {
     type: "Feature",

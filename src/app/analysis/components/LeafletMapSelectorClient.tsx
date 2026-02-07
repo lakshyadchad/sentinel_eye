@@ -5,7 +5,6 @@ import {
   TileLayer,
   LayersControl,
   useMap,
-  useMapEvents,
 } from "react-leaflet";
 import type { LatLngLiteral } from "leaflet";
 import { useEffect } from "react";
@@ -29,15 +28,6 @@ const sentinel2Url =
 const streetsUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 const terrainUrl = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
 
-function ClickHandler({ onPick }: { onPick: (value: LatLngLiteral) => void }) {
-  useMapEvents({
-    click(e) {
-      onPick({ lat: e.latlng.lat, lng: e.latlng.lng });
-    },
-  });
-  return null;
-}
-
 function MapPanTo({ center }: { center?: { lat: number; lon: number } | null }) {
   const map = useMap();
   useEffect(() => {
@@ -52,15 +42,24 @@ function MapPanTo({ center }: { center?: { lat: number; lon: number } | null }) 
 }
 
 export default function LeafletMapSelectorClient({
-  onChange,
+  selectedTileIds,
+  onTileSelectionChange,
   center,
   height = 460,
 }: {
-  value: { lat: number; lon: number } | null;
-  onChange: (value: { lat: number; lon: number }) => void;
+  selectedTileIds: string[];
+  onTileSelectionChange: (tileIds: string[]) => void;
   center?: { lat: number; lon: number } | null;
   height?: number;
 }) {
+  const handleToggleTile = (tileId: string) => {
+    if (selectedTileIds.includes(tileId)) {
+      onTileSelectionChange(selectedTileIds.filter((item) => item !== tileId));
+      return;
+    }
+    onTileSelectionChange([...selectedTileIds, tileId]);
+  };
+
   return (
     <div
       className="bg-card border border-border rounded-2xl overflow-hidden relative z-0"
@@ -78,7 +77,10 @@ export default function LeafletMapSelectorClient({
       >
         <LayersControl position="topright">
           <LayersControl.Overlay checked name="Sentinel-2 Tile Grid">
-            <Sentinel2GridLayer />
+            <Sentinel2GridLayer
+              selectedTileIds={selectedTileIds}
+              onToggleTile={handleToggleTile}
+            />
           </LayersControl.Overlay>
 
           <LayersControl.BaseLayer checked name="Sentinel-2 (10m)">
@@ -97,13 +99,6 @@ export default function LeafletMapSelectorClient({
             <TileLayer url={terrainUrl} />
           </LayersControl.BaseLayer>
         </LayersControl>
-
-        {/* Click still returns lat/lon */}
-        <ClickHandler
-          onPick={(picked) =>
-            onChange({ lat: picked.lat, lon: picked.lng })
-          }
-        />
 
         <MapPanTo center={center} />
       </MapContainer>

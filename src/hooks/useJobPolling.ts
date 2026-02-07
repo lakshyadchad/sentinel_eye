@@ -41,6 +41,7 @@ export function useJobPolling(jobId: string | null) {
           coordinates:
             normalized.coordinates ||
             existing?.coordinates || { lat: 0, lon: 0 },
+          tile_ids: normalized.tile_ids || existing?.tile_ids || [],
           start_year: normalized.start_year ?? existing?.start_year ?? 0,
           end_year: normalized.end_year ?? existing?.end_year ?? 0,
           change_types: existing?.change_types ?? [],
@@ -64,6 +65,11 @@ export function useJobPolling(jobId: string | null) {
               normalized.coordinates ||
               existingAfter?.coordinates ||
               resultsData.coordinates || { lat: 0, lon: 0 },
+            tile_ids:
+              normalized.tile_ids ||
+              resultsData.tile_ids ||
+              existingAfter?.tile_ids ||
+              [],
             start_year:
               normalized.start_year ?? existingAfter?.start_year ?? 0,
             end_year: normalized.end_year ?? existingAfter?.end_year ?? 0,

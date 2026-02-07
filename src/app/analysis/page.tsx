@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,6 +16,7 @@ import LeafletMapSelector from "./components/LeafletMapSelector";
 import { useAnalyzeRegion } from "@/hooks/useAnalyzeRegion";
 import { useJobHistory } from "@/hooks/useJobHistory";
 import type { ChangeType } from "@/types/jobs";
+import { getTileCenterById } from "@/hooks/sentinel2-rondonia-tiles";
 
 const YEAR_OPTIONS = [2020, 2021, 2022, 2023, 2024];
 const LOCATIONS = [
@@ -33,12 +33,15 @@ export default function MapAnalysisPage() {
   const { run, loading, error } = useAnalyzeRegion();
   const { history } = useJobHistory();
 
-  const [coordinates, setCoordinates] = useState<{ lat: number; lon: number }>(
-    { lat: -10.0, lon: -63.0 },
-  );
-  const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>(
-    { lat: -10.0, lon: -63.0 },
-  );
+  const [coordinates, setCoordinates] = useState<{ lat: number; lon: number }>({
+    lat: -10.0,
+    lon: -63.0,
+  });
+  const [selectedTileIds, setSelectedTileIds] = useState<string[]>([]);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>({
+    lat: -10.0,
+    lon: -63.0,
+  });
   const [startYear, setStartYear] = useState(2021);
   const [endYear, setEndYear] = useState(2024);
   const [changeTypes, setChangeTypes] = useState<ChangeType[]>([
@@ -47,14 +50,8 @@ export default function MapAnalysisPage() {
   ]);
   const [selectedLocation, setSelectedLocation] = useState("custom");
 
-  const isValidCoords =
-    coordinates.lat >= -90 &&
-    coordinates.lat <= 90 &&
-    coordinates.lon >= -180 &&
-    coordinates.lon <= 180;
-
   const canSubmit =
-    isValidCoords && changeTypes.length > 0 && endYear >= startYear;
+    selectedTileIds.length > 0 && changeTypes.length > 0 && endYear >= startYear;
 
   const recentJobs = useMemo(() => history.slice(0, 6), [history]);
 
@@ -68,12 +65,17 @@ export default function MapAnalysisPage() {
 
   const handleSubmit = async () => {
     if (!canSubmit || loading) return;
+
+    const centerFromTile = getTileCenterById(selectedTileIds[0]);
+
     const res = await run({
-      coordinates,
+      tile_ids: selectedTileIds,
+      coordinates: centerFromTile ?? coordinates,
       start_year: startYear,
       end_year: endYear,
       change_types: changeTypes,
     });
+
     router.push(`/scan-result?job_id=${res.job_id}`);
   };
 
@@ -98,9 +100,7 @@ export default function MapAnalysisPage() {
                   onValueChange={(value) => {
                     setSelectedLocation(value);
                     if (value === "custom") return;
-                    const match = LOCATIONS.find(
-                      (item) => item.label === value,
-                    );
+                    const match = LOCATIONS.find((item) => item.label === value);
                     if (!match) return;
                     const next = { lat: match.lat, lon: match.lon };
                     setCoordinates(next);
@@ -116,17 +116,23 @@ export default function MapAnalysisPage() {
                         {loc.label}
                       </SelectItem>
                     ))}
-                    <SelectItem value="custom">Custom (map or manual)</SelectItem>
+                    <SelectItem value="custom">Custom (tile selection)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </Card>
 
             <LeafletMapSelector
-              value={coordinates}
-              onChange={(next) => {
-                setCoordinates(next);
-                setMapCenter(next);
+              selectedTileIds={selectedTileIds}
+              onTileSelectionChange={(nextIds) => {
+                setSelectedTileIds(nextIds);
+
+                const center = nextIds.length > 0 ? getTileCenterById(nextIds[0]) : null;
+                if (center) {
+                  setCoordinates(center);
+                  setMapCenter(center);
+                }
+
                 setSelectedLocation("custom");
               }}
               center={mapCenter}
@@ -136,45 +142,31 @@ export default function MapAnalysisPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">
-                    Coordinates
+                    Selected Tile IDs
                   </p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <Input
-                      value={coordinates.lat}
-                      onChange={(e) => {
-                        const lat = Number(e.target.value);
-                        const next = { ...coordinates, lat };
-                        setCoordinates(next);
-                        setMapCenter(next);
-                        setSelectedLocation("custom");
-                      }}
-                      type="number"
-                      step="0.0001"
-                      placeholder="Latitude"
-                    />
-                    <Input
-                      value={coordinates.lon}
-                      onChange={(e) => {
-                        const lon = Number(e.target.value);
-                        const next = { ...coordinates, lon };
-                        setCoordinates(next);
-                        setMapCenter(next);
-                        setSelectedLocation("custom");
-                      }}
-                      type="number"
-                      step="0.0001"
-                      placeholder="Longitude"
-                    />
+                  <div className="mt-3 min-h-16 rounded-xl border border-border bg-muted/30 p-3">
+                    {selectedTileIds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        Click one or more Sentinel-2 grid tiles on the map.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedTileIds.map((tileId) => (
+                          <span
+                            key={tileId}
+                            className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                          >
+                            {tileId}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Not sure where to start? Select a popular location above or
-                    click anywhere on the map. Try Porto Velho (-8.76, -63.90)
-                    or Pacaas Novos Park (-10.50, -63.50).
+                    Click a tile again to remove it. The analysis request sends these tile IDs.
                   </p>
-                  {!isValidCoords && (
-                    <p className="text-xs text-red-500 mt-2">
-                      Please enter valid latitude/longitude values.
-                    </p>
+                  {selectedTileIds.length === 0 && (
+                    <p className="text-xs text-red-500 mt-2">Select at least one tile ID.</p>
                   )}
                 </div>
 
@@ -185,9 +177,7 @@ export default function MapAnalysisPage() {
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <Select
                       value={String(startYear)}
-                      onValueChange={(value) =>
-                        setStartYear(Number(value))
-                      }
+                      onValueChange={(value) => setStartYear(Number(value))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Start year" />
@@ -254,23 +244,14 @@ export default function MapAnalysisPage() {
 
               <div className="mt-6 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="text-xs text-muted-foreground">
-                  Submit to backend job queue. Results will appear once the job
-                  completes.
+                  Submit to backend job queue. Results will appear once the job completes.
                 </div>
-                <Button
-                  disabled={!canSubmit || loading}
-                  onClick={handleSubmit}
-                  className="px-6"
-                >
+                <Button disabled={!canSubmit || loading} onClick={handleSubmit} className="px-6">
                   {loading ? "Submitting..." : "Submit Analysis"}
                 </Button>
               </div>
 
-              {error && (
-                <div className="mt-4 text-sm text-red-500 font-medium">
-                  {error}
-                </div>
-              )}
+              {error && <div className="mt-4 text-sm text-red-500 font-medium">{error}</div>}
             </Card>
           </div>
 
@@ -288,9 +269,7 @@ export default function MapAnalysisPage() {
                   recentJobs.map((job) => (
                     <button
                       key={job.job_id}
-                      onClick={() =>
-                        router.push(`/scan-result?job_id=${job.job_id}`)
-                      }
+                      onClick={() => router.push(`/scan-result?job_id=${job.job_id}`)}
                       className="w-full text-left rounded-xl border border-border bg-muted/30 px-4 py-3 hover:bg-muted/50 transition"
                     >
                       <div className="flex items-center justify-between">
@@ -302,9 +281,10 @@ export default function MapAnalysisPage() {
                         </span>
                       </div>
                       <div className="mt-2 text-xs text-muted-foreground">
-                        {job.coordinates.lat.toFixed(2)},{" "}
-                        {job.coordinates.lon.toFixed(2)} • {job.start_year}→
-                        {job.end_year}
+                        {job.tile_ids && job.tile_ids.length > 0
+                          ? job.tile_ids.join(", ")
+                          : `${job.coordinates.lat.toFixed(2)}, ${job.coordinates.lon.toFixed(2)}`} {" "}
+                        • {job.start_year}→{job.end_year}
                       </div>
                     </button>
                   ))

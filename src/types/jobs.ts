@@ -8,10 +8,11 @@ export type ResultChangeType = "deforestation" | "urban" | "encroachment";
 export type JobStatus = "Queued" | "Processing" | "Completed" | "Failed" | "COMPLETED";
 
 export interface AnalyzeRequest {
-  coordinates: {
+  coordinates?: {
     lat: number;
     lon: number;
   };
+  tile_ids?: string[];
   start_year: number;
   end_year: number;
   change_types: ChangeType[];
@@ -29,6 +30,7 @@ export interface JobStatusResponse {
   progress?: number;
   message?: string;
   coordinates?: { lat: number; lon: number };
+  tile_ids?: string[];
   start_year?: number;
   end_year?: number;
 }
@@ -37,6 +39,7 @@ export interface JobResultsResponse {
   job_id: string;
   status: "COMPLETED" | "Completed";
   coordinates: { lat: number; lon: number };
+  tile_ids?: string[];
   statistics: {
     deforestation_area_km2?: number;
     urban_expansion_km2?: number;
@@ -72,6 +75,7 @@ export interface JobHistoryItem {
   progress: number;
   message: string;
   coordinates: { lat: number; lon: number };
+  tile_ids?: string[];
   start_year: number;
   end_year: number;
   change_types: ChangeType[];
