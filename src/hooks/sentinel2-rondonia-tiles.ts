@@ -1,9 +1,9 @@
 import { FeatureCollection } from "geojson";
 
 /**
- * Approximate Sentinel-2 tile footprints for Rondonia (UI interaction only).
+ * Approximate Sentinel-2 tile footprints for Rondonia (original layout).
  */
-export const SENTINEL2_TILES_RONDONIA: FeatureCollection = {
+const SENTINEL2_TILES_RONDONIA_ORIGINAL: FeatureCollection = {
   type: "FeatureCollection",
   features: [
     // M band
@@ -61,6 +61,94 @@ export const SENTINEL2_TILES_RONDONIA: FeatureCollection = {
     tile("20LPJ", box(-64, -16, -63, -17)),
     tile("20LQJ", box(-63, -16, -62, -17)),
     tile("20LRJ", box(-62, -16, -61, -17)),
+  ],
+};
+
+const INDIA_SHIFT = { lat: 35.0, lon: 139.5 };
+const AUSTRALIA_SHIFT = { lat: -10.0, lon: 201.0 };
+const CHINA_SHIFT = { lat: 39.0, lon: 175.0 };
+const INDIA_CLONE_TILE_IDS = new Set([
+  "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+  "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+  "20LPQ", "20LQQ", "20LRQ", "21LTK",
+  "20LPP", "20LQP", "20LRP", "21LTJ",
+  "20LNN", "20LPN", "20LQN", "20LRN",
+  "20LNM", "20LPM", "20LQM", "20LRM",
+  "20LNL", "20LPL",
+]);
+const AUSTRALIA_CLONE_TILE_IDS = new Set([
+  "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+  "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+  "20LPQ", "20LQQ", "20LRQ", "21LTK",
+  "20LPP", "20LQP", "20LRP", "21LTJ",
+  "20LNN", "20LPN", "20LQN",
+]);
+const CHINA_CLONE_TILE_IDS = new Set([
+  "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+  "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+  "20LPQ", "20LQQ", "20LRQ", "21LTK",
+  "20LPP", "20LQP", "20LRP", "21LTJ",
+  "20LNN", "20LPN", "20LQN", "20LRN",
+  "20LNM", "20LPM", "20LQM", "20LRM",
+  "20LNL", "20LPL", "20LQL", "20LRL",
+  "20LNK", "20LPK",
+]);
+
+function cloneAndShiftFeatureCollection(
+  collection: FeatureCollection,
+  shift: { lat: number; lon: number },
+  filterIds?: Set<string>,
+): FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: collection.features
+      .filter((feature) => {
+        const id = feature.properties?.id;
+        if (!id) return false;
+        if (!filterIds) return true;
+        return filterIds.has(id);
+      })
+      .map((feature) => {
+        if (feature.geometry.type !== "Polygon") return feature;
+        return {
+          ...feature,
+          geometry: {
+            ...feature.geometry,
+            coordinates: feature.geometry.coordinates.map((ring) =>
+              ring.map(([lon, lat]) => [lon + shift.lon, lat + shift.lat]),
+            ),
+          },
+        };
+      }),
+  };
+}
+
+/**
+ * Combined display collection:
+ * 1) Original Rondônia grid (unchanged)
+ * 2) India clone grid over Aravalli region (28 tiles, same IDs)
+ * 3) Australia clone grid over inland Queensland/NSW corridor (21 tiles, same IDs)
+ * 4) China clone grid over inland Gansu/Ningxia corridor (32 tiles, same IDs)
+ */
+export const SENTINEL2_TILES_RONDONIA: FeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    ...SENTINEL2_TILES_RONDONIA_ORIGINAL.features,
+    ...cloneAndShiftFeatureCollection(
+      SENTINEL2_TILES_RONDONIA_ORIGINAL,
+      INDIA_SHIFT,
+      INDIA_CLONE_TILE_IDS,
+    ).features,
+    ...cloneAndShiftFeatureCollection(
+      SENTINEL2_TILES_RONDONIA_ORIGINAL,
+      AUSTRALIA_SHIFT,
+      AUSTRALIA_CLONE_TILE_IDS,
+    ).features,
+    ...cloneAndShiftFeatureCollection(
+      SENTINEL2_TILES_RONDONIA_ORIGINAL,
+      CHINA_SHIFT,
+      CHINA_CLONE_TILE_IDS,
+    ).features,
   ],
 };
 

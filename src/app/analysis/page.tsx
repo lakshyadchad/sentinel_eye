@@ -20,9 +20,16 @@ import type { ChangeType, TileInfo } from "@/types/jobs";
 import { SENTINEL2_TILES_RONDONIA } from "@/hooks/sentinel2-rondonia-tiles";
 
 const YEAR_OPTIONS = [2020, 2021, 2022, 2023, 2024];
+const REGION_BOUNDS = {
+  all: { min_lon: -66, min_lat: -28, max_lon: 143, max_lat: 40 },
+  brazil: { min_lon: -66, min_lat: -17.5, max_lon: -58.5, max_lat: -7.5 },
+  india: { min_lon: 73.5, min_lat: 17.0, max_lon: 82.5, max_lat: 28.5 },
+  australia: { min_lon: 135.5, min_lat: -27.5, max_lon: 143.5, max_lat: -17.5 },
+  china: { min_lon: 109.0, min_lat: 21.0, max_lon: 117.0, max_lat: 32.0 },
+} as const;
 
 function getFallbackTiles(): TileInfo[] {
-  return SENTINEL2_TILES_RONDONIA.features
+  const baseTiles = SENTINEL2_TILES_RONDONIA.features
     .map((feature, index) => {
       const tileId = feature.properties?.id;
       if (!tileId || feature.geometry.type !== "Polygon") return null;
@@ -47,6 +54,51 @@ function getFallbackTiles(): TileInfo[] {
       } satisfies TileInfo;
     })
     .filter((tile): tile is TileInfo => Boolean(tile));
+
+  const chinaCloneIds = new Set([
+    "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+    "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+    "20LPQ", "20LQQ", "20LRQ", "21LTK",
+    "20LPP", "20LQP", "20LRP", "21LTJ",
+    "20LNN", "20LPN", "20LQN", "20LRN",
+    "20LNM", "20LPM", "20LQM", "20LRM",
+    "20LNL", "20LPL", "20LQL", "20LRL",
+    "20LNK", "20LPK",
+  ]);
+  const chinaLatShift = 39;
+  const chinaLonShift = 175;
+
+  const source = baseTiles.filter((tile) => tile.center.lon < -50 && chinaCloneIds.has(tile.tile_id));
+  const chinaTiles = source.map((tile, index) => ({
+    ...tile,
+    name: `China Clone ${String(index + 1).padStart(2, "0")} - ${tile.tile_id}`,
+    center: {
+      lat: tile.center.lat + chinaLatShift,
+      lon: tile.center.lon + chinaLonShift,
+    },
+    bbox: {
+      min_lon: tile.bbox.min_lon + chinaLonShift,
+      min_lat: tile.bbox.min_lat + chinaLatShift,
+      max_lon: tile.bbox.max_lon + chinaLonShift,
+      max_lat: tile.bbox.max_lat + chinaLatShift,
+    },
+  }));
+  const merged = [...baseTiles, ...chinaTiles];
+  const deduped = new Map<string, TileInfo>();
+  for (const tile of merged) {
+    deduped.set(tileKey(tile), tile);
+  }
+  return Array.from(deduped.values());
+}
+
+function tileKey(tile: TileInfo) {
+  return [
+    tile.tile_id,
+    tile.bbox.min_lon,
+    tile.bbox.min_lat,
+    tile.bbox.max_lon,
+    tile.bbox.max_lat,
+  ].join("|");
 }
 
 export default function MapAnalysisPage() {
@@ -58,9 +110,11 @@ export default function MapAnalysisPage() {
   const [tilesLoading, setTilesLoading] = useState(false);
 
   const [selectedTileId, setSelectedTileId] = useState<string>("");
+  const [selectedTileBounds, setSelectedTileBounds] = useState<TileInfo["bbox"] | null>(null);
+  const [focusBounds, setFocusBounds] = useState<TileInfo["bbox"] | null>(REGION_BOUNDS.all);
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>({
-    lat: -10.0,
-    lon: -63.0,
+    lat: 3.0,
+    lon: 20.0,
   });
 
   const [startYear, setStartYear] = useState(2021);
@@ -79,7 +133,18 @@ export default function MapAnalysisPage() {
         const data = await getTiles();
         if (!mounted) return;
         if (Array.isArray(data.tiles) && data.tiles.length > 0) {
-          setTiles(data.tiles);
+          setTiles((prev) => {
+            const merged = [...prev];
+            const seen = new Set(prev.map(tileKey));
+            for (const tile of data.tiles) {
+              const key = tileKey(tile);
+              if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(tile);
+              }
+            }
+            return merged;
+          });
         }
       } catch {
         // Keep local tiles silently if API tiles are unavailable in this deployment.
@@ -94,9 +159,17 @@ export default function MapAnalysisPage() {
     };
   }, []);
 
+  const selectableTiles = useMemo(() => {
+    const unique = new Map<string, TileInfo>();
+    for (const tile of tiles) {
+      if (!unique.has(tile.tile_id)) unique.set(tile.tile_id, tile);
+    }
+    return Array.from(unique.values());
+  }, [tiles]);
+
   const selectedTile = useMemo(
-    () => tiles.find((tile) => tile.tile_id === selectedTileId) || null,
-    [tiles, selectedTileId],
+    () => selectableTiles.find((tile) => tile.tile_id === selectedTileId) || null,
+    [selectableTiles, selectedTileId],
   );
 
   const canSubmit = !!selectedTile && changeTypes.length > 0 && endYear >= startYear;
@@ -110,12 +183,21 @@ export default function MapAnalysisPage() {
     );
   };
 
-  const handleTileSelect = (tileId: string) => {
+  const handleTileSelectById = (tileId: string) => {
     setSelectedTileId(tileId);
-    const tile = tiles.find((item) => item.tile_id === tileId);
+    const tile = selectableTiles.find((item) => item.tile_id === tileId);
     if (tile) {
       setMapCenter(tile.center);
+      setSelectedTileBounds(tile.bbox);
+      setFocusBounds(null);
     }
+  };
+
+  const handleTileSelectFromMap = (tile: TileInfo) => {
+    setSelectedTileId(tile.tile_id);
+    setMapCenter(tile.center);
+    setSelectedTileBounds(tile.bbox);
+    setFocusBounds(null);
   };
 
   const handleSubmit = async () => {
@@ -123,8 +205,6 @@ export default function MapAnalysisPage() {
 
     const res = await run({
       tile_id: selectedTile.tile_id,
-      tile_ids: [selectedTile.tile_id],
-      coordinates: selectedTile.center,
       start_year: startYear,
       end_year: endYear,
       change_types: changeTypes,
@@ -145,9 +225,41 @@ export default function MapAnalysisPage() {
             <LeafletMapSelector
               tiles={tiles}
               selectedTileId={selectedTileId}
-              onTileSelect={handleTileSelect}
+              selectedTileBounds={selectedTileBounds}
+              focusBounds={focusBounds}
+              onTileSelect={handleTileSelectFromMap}
               center={selectedTile?.center ?? mapCenter}
             />
+
+            <Card className="p-4 rounded-2xl border border-border shadow-sm">
+              <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-3">
+                Region Focus
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { label: "All Regions", key: "all" },
+                    { label: "Rondonia", key: "brazil" },
+                    { label: "Aravalli", key: "india" },
+                    { label: "Australia", key: "australia" },
+                    { label: "China", key: "china" },
+                  ] as const
+                ).map((item) => (
+                  <Button
+                    key={item.key}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTileBounds(null);
+                      setFocusBounds(REGION_BOUNDS[item.key]);
+                    }}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+            </Card>
 
             <Card className="p-6 rounded-2xl border border-border shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -158,7 +270,7 @@ export default function MapAnalysisPage() {
                   <div className="mt-3">
                     <Select
                       value={selectedTileId}
-                      onValueChange={handleTileSelect}
+                      onValueChange={handleTileSelectById}
                       disabled={tilesLoading || tiles.length === 0}
                     >
                       <SelectTrigger>
@@ -167,7 +279,7 @@ export default function MapAnalysisPage() {
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {tiles.map((tile) => (
+                        {selectableTiles.map((tile) => (
                           <SelectItem key={tile.tile_id} value={tile.tile_id}>
                             {tile.name}
                           </SelectItem>

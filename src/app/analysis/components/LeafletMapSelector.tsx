@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import type { TileInfo } from "@/types/jobs";
+import type { TileBounds, TileInfo } from "@/types/jobs";
 
 const LeafletMapSelectorClient = dynamic(
   () => import("./LeafletMapSelectorClient"),
@@ -11,7 +11,9 @@ const LeafletMapSelectorClient = dynamic(
 export default function LeafletMapSelector(props: {
   tiles?: TileInfo[];
   selectedTileId?: string | null;
-  onTileSelect?: (tileId: string) => void;
+  selectedTileBounds?: TileBounds | null;
+  focusBounds?: TileBounds | null;
+  onTileSelect?: (tile: TileInfo) => void;
   center?: { lat: number; lon: number } | null;
   height?: number;
 }) {

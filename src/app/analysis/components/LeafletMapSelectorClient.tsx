@@ -9,17 +9,17 @@ import {
   useMap,
 } from "react-leaflet";
 import type { LatLngLiteral, LatLngBoundsExpression } from "leaflet";
-import { Fragment, useEffect, useMemo, useState } from "react";
-import type { TileInfo } from "@/types/jobs";
+import { Fragment, useEffect, useMemo } from "react";
+import type { TileBounds, TileInfo } from "@/types/jobs";
 
 const DEFAULT_CENTER: LatLngLiteral = {
-  lat: -15.0,
-  lng: -60.0,
+  lat: 3.0,
+  lng: 20.0,
 };
 
-const SOUTH_AMERICA_BOUNDS: [[number, number], [number, number]] = [
-  [-56.0, -82.0],
-  [13.0, -34.0],
+const BRAZIL_INDIA_AUSTRALIA_BOUNDS: [[number, number], [number, number]] = [
+  [-60.0, -90.0],
+  [40.0, 170.0],
 ];
 
 const sentinel2Url =
@@ -29,15 +29,22 @@ const terrainUrl = "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png";
 
 function MapViewport({
   center,
+  focusBounds,
   selectedTileBounds,
 }: {
   center?: { lat: number; lon: number } | null;
+  focusBounds?: LatLngBoundsExpression | null;
   selectedTileBounds?: LatLngBoundsExpression | null;
 }) {
   const map = useMap();
 
   useEffect(() => {
     if (!map) return;
+
+    if (focusBounds) {
+      map.fitBounds(focusBounds, { padding: [24, 24], animate: true });
+      return;
+    }
 
     if (selectedTileBounds) {
       map.fitBounds(selectedTileBounds, { padding: [24, 24], animate: true });
@@ -51,7 +58,7 @@ function MapViewport({
         { animate: true }
       );
     }
-  }, [center, selectedTileBounds, map]);
+  }, [center, focusBounds, selectedTileBounds, map]);
 
   return null;
 }
@@ -59,45 +66,35 @@ function MapViewport({
 export default function LeafletMapSelectorClient({
   tiles = [],
   selectedTileId,
+  selectedTileBounds,
+  focusBounds,
   onTileSelect,
   center,
   height = 460,
 }: {
   tiles?: TileInfo[];
   selectedTileId?: string | null;
-  onTileSelect?: (tileId: string) => void;
+  selectedTileBounds?: TileBounds | null;
+  focusBounds?: TileBounds | null;
+  onTileSelect?: (tile: TileInfo) => void;
   center?: { lat: number; lon: number } | null;
   height?: number;
 }) {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const selectedTile = useMemo(
-    () => tiles.find((tile) => tile.tile_id === selectedTileId) || null,
-    [tiles, selectedTileId]
-  );
+  const mapFocusBounds = useMemo<LatLngBoundsExpression | null>(() => {
+    if (!focusBounds) return null;
+    return [
+      [focusBounds.min_lat, focusBounds.min_lon],
+      [focusBounds.max_lat, focusBounds.max_lon],
+    ];
+  }, [focusBounds]);
 
   const selectedBounds = useMemo<LatLngBoundsExpression | null>(() => {
-    if (!selectedTile) return null;
+    if (!selectedTileBounds) return null;
     return [
-      [selectedTile.bbox.min_lat, selectedTile.bbox.min_lon],
-      [selectedTile.bbox.max_lat, selectedTile.bbox.max_lon],
+      [selectedTileBounds.min_lat, selectedTileBounds.min_lon],
+      [selectedTileBounds.max_lat, selectedTileBounds.max_lon],
     ];
-  }, [selectedTile]);
-
-  if (!isMounted) {
-    return (
-      <div
-        className="bg-card border border-border rounded-2xl overflow-hidden relative z-0 flex items-center justify-center text-muted-foreground"
-        style={{ height }}
-      >
-        Loading map...
-      </div>
-    );
-  }
+  }, [selectedTileBounds]);
 
   return (
     <div
@@ -106,10 +103,10 @@ export default function LeafletMapSelectorClient({
     >
       <MapContainer
         center={DEFAULT_CENTER}
-        zoom={4}
-        minZoom={3}
+        zoom={2}
+        minZoom={2}
         maxZoom={15}
-        maxBounds={SOUTH_AMERICA_BOUNDS}
+        maxBounds={BRAZIL_INDIA_AUSTRALIA_BOUNDS}
         maxBoundsViscosity={0.8}
         scrollWheelZoom
         style={{ height: "100%", width: "100%" }}
@@ -132,7 +129,7 @@ export default function LeafletMapSelectorClient({
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        {tiles.map((tile) => {
+        {tiles.map((tile, index) => {
           const bounds: LatLngBoundsExpression = [
             [tile.bbox.min_lat, tile.bbox.min_lon],
             [tile.bbox.max_lat, tile.bbox.max_lon],
@@ -140,7 +137,7 @@ export default function LeafletMapSelectorClient({
           const isSelected = tile.tile_id === selectedTileId;
 
           return (
-            <Fragment key={tile.tile_id}>
+            <Fragment key={`${tile.tile_id}-${index}`}>
               <Rectangle
                 bounds={bounds}
                 pathOptions={{
@@ -151,14 +148,18 @@ export default function LeafletMapSelectorClient({
                   fillOpacity: isSelected ? 0.18 : 0.03,
                 }}
                 eventHandlers={{
-                  click: () => onTileSelect?.(tile.tile_id),
+                  click: () => onTileSelect?.(tile),
                 }}
               />
             </Fragment>
           );
         })}
 
-        <MapViewport center={center} selectedTileBounds={selectedBounds} />
+        <MapViewport
+          center={center}
+          focusBounds={mapFocusBounds}
+          selectedTileBounds={selectedBounds}
+        />
       </MapContainer>
     </div>
   );
