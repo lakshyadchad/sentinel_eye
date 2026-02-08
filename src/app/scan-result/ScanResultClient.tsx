@@ -52,7 +52,12 @@ export default function ScanResultClient() {
     () =>
       availableFileTypes.filter((file) => {
         const key = file.type.toLowerCase();
-        return key !== "deforestation" && key !== "urban_expansion";
+        const normalized = key.replace(/\.[^/.]+$/, "");
+        return (
+          normalized !== "deforestation" &&
+          normalized !== "urban_expansion" &&
+          normalized !== "summary"
+        );
       }),
     [availableFileTypes],
   );
