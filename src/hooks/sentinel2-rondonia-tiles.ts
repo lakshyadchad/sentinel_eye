@@ -64,7 +64,11 @@ const SENTINEL2_TILES_RONDONIA_ORIGINAL: FeatureCollection = {
   ],
 };
 
-const INDIA_SHIFT = { lat: 35.0, lon: 139.5 };
+// Fine-tune cloned grid placement over India:
+// +LAT moves north, -LON moves west.
+const LAT_OFFSET = 0.8;
+const LON_OFFSET = -0.9;
+const INDIA_SHIFT = { lat: 35.0 + LAT_OFFSET, lon: 139.5 + LON_OFFSET };
 const AUSTRALIA_SHIFT = { lat: -10.0, lon: 201.0 };
 const CHINA_SHIFT = { lat: 39.0, lon: 175.0 };
 const INDIA_CLONE_TILE_IDS = new Set([
