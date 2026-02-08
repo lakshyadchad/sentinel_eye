@@ -1,16 +1,15 @@
 ﻿"use client";
+
 import "leaflet/dist/leaflet.css";
 import {
   MapContainer,
   TileLayer,
   LayersControl,
   Rectangle,
-  Marker,
   useMap,
 } from "react-leaflet";
-import { divIcon } from "leaflet";
 import type { LatLngLiteral, LatLngBoundsExpression } from "leaflet";
-import { Fragment, useEffect, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { TileInfo } from "@/types/jobs";
 
 const DEFAULT_CENTER: LatLngLiteral = {
@@ -36,15 +35,21 @@ function MapViewport({
   selectedTileBounds?: LatLngBoundsExpression | null;
 }) {
   const map = useMap();
+
   useEffect(() => {
+    if (!map) return;
+
     if (selectedTileBounds) {
       map.fitBounds(selectedTileBounds, { padding: [24, 24], animate: true });
       return;
     }
+
     if (center) {
-      map.setView({ lat: center.lat, lng: center.lon }, map.getZoom(), {
-        animate: true,
-      });
+      map.setView(
+        { lat: center.lat, lng: center.lon },
+        map.getZoom(),
+        { animate: true }
+      );
     }
   }, [center, selectedTileBounds, map]);
 
@@ -64,9 +69,15 @@ export default function LeafletMapSelectorClient({
   center?: { lat: number; lon: number } | null;
   height?: number;
 }) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const selectedTile = useMemo(
     () => tiles.find((tile) => tile.tile_id === selectedTileId) || null,
-    [tiles, selectedTileId],
+    [tiles, selectedTileId]
   );
 
   const selectedBounds = useMemo<LatLngBoundsExpression | null>(() => {
@@ -76,6 +87,17 @@ export default function LeafletMapSelectorClient({
       [selectedTile.bbox.max_lat, selectedTile.bbox.max_lon],
     ];
   }, [selectedTile]);
+
+  if (!isMounted) {
+    return (
+      <div
+        className="bg-card border border-border rounded-2xl overflow-hidden relative z-0 flex items-center justify-center text-muted-foreground"
+        style={{ height }}
+      >
+        Loading map...
+      </div>
+    );
+  }
 
   return (
     <div
@@ -90,7 +112,7 @@ export default function LeafletMapSelectorClient({
         maxBounds={SOUTH_AMERICA_BOUNDS}
         maxBoundsViscosity={0.8}
         scrollWheelZoom
-        className="h-full w-full z-0"
+        style={{ height: "100%", width: "100%" }}
       >
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="Sentinel-2 (10m)">
@@ -100,9 +122,11 @@ export default function LeafletMapSelectorClient({
               attribution="© Sentinel-2 cloudless by EOX"
             />
           </LayersControl.BaseLayer>
+
           <LayersControl.BaseLayer name="Streets">
             <TileLayer url={streetsUrl} />
           </LayersControl.BaseLayer>
+
           <LayersControl.BaseLayer name="Terrain">
             <TileLayer url={terrainUrl} />
           </LayersControl.BaseLayer>
@@ -114,27 +138,6 @@ export default function LeafletMapSelectorClient({
             [tile.bbox.max_lat, tile.bbox.max_lon],
           ];
           const isSelected = tile.tile_id === selectedTileId;
-
-          const center: [number, number] = [
-            (tile.bbox.min_lat + tile.bbox.max_lat) / 2,
-            (tile.bbox.min_lon + tile.bbox.max_lon) / 2,
-          ];
-
-          const tileLabelIcon = divIcon({
-            className: "tile-id-label bg-transparent border-none",
-            html: `<div style="
-              color: #ffffff;
-              font-size: 11px;
-              font-weight: 700;
-              letter-spacing: 0.04em;
-              text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-              white-space: nowrap;
-              text-align: center;
-              line-height: 1.2;
-            ">${tile.tile_id}</div>`,
-            iconSize: [120, 30],     // wide enough for most tile IDs (e.g. 20MPS, 21LTK)
-            iconAnchor: [60, 15],    // center: half of width & half of height
-          });
 
           return (
             <Fragment key={tile.tile_id}>
@@ -150,11 +153,6 @@ export default function LeafletMapSelectorClient({
                 eventHandlers={{
                   click: () => onTileSelect?.(tile.tile_id),
                 }}
-              />
-              <Marker
-                position={center}
-                icon={tileLabelIcon}
-                interactive={false} // prevent click interference
               />
             </Fragment>
           );
