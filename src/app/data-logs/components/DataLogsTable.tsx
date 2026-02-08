@@ -18,9 +18,6 @@ export default function DataLogsTable({ logs }: { logs: JobHistoryItem[] }) {
                 Job ID
               </th>
               <th className="text-left p-4 font-bold uppercase text-[10px] tracking-wider">
-                Coordinates
-              </th>
-              <th className="text-left p-4 font-bold uppercase text-[10px] tracking-wider">
                 Date Range
               </th>
               <th className="text-left p-4 font-bold uppercase text-[10px] tracking-wider">
@@ -37,7 +34,7 @@ export default function DataLogsTable({ logs }: { logs: JobHistoryItem[] }) {
               <tr>
                 <td
                   className="p-8 text-center text-muted-foreground font-medium"
-                  colSpan={5}
+                  colSpan={4}  // ← changed from 5 to 4
                 >
                   No scan logs found. Run a scan from Map Analysis first.
                 </td>
@@ -50,9 +47,6 @@ export default function DataLogsTable({ logs }: { logs: JobHistoryItem[] }) {
                 >
                   <td className="p-4 font-mono font-bold text-xs">
                     {s.job_id}
-                  </td>
-                  <td className="p-4 font-semibold">
-                    {s.coordinates.lat.toFixed(3)}, {s.coordinates.lon.toFixed(3)}
                   </td>
                   <td className="p-4">
                     <span className="text-xs font-semibold text-muted-foreground">
