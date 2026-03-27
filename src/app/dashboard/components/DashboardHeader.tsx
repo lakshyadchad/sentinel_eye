@@ -18,7 +18,7 @@ export default function DashboardHeader() {
     <div className="flex flex-col sm:flex-row items-start justify-between gap-4 p-6 pb-2 border-b border-border/50 bg-background/50 backdrop-blur-md sticky top-0 z-10">
       <div>
         <h1 className="text-2xl font-black tracking-tight text-foreground uppercase">
-          Dashboard
+          Analysis
         </h1>
         <div className="mt-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           <span>Live monitoring overview</span>

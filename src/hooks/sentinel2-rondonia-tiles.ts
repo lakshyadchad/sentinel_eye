@@ -1,0 +1,207 @@
+import { FeatureCollection } from "geojson";
+
+/**
+ * Approximate Sentinel-2 tile footprints for Rondonia (original layout).
+ */
+const SENTINEL2_TILES_RONDONIA_ORIGINAL: FeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    // M band
+    tile("20MPS", box(-64, -8, -63, -9)),
+    tile("20MQS", box(-63, -8, -62, -9)),
+    tile("20MRS", box(-62, -8, -61, -9)),
+    tile("21MTM", box(-61, -8, -60, -9)),
+    tile("21MUM", box(-60, -8, -59, -9)),
+
+    // L band row 1
+    tile("20LPR", box(-65, -9, -64, -10)),
+    tile("20LQR", box(-64, -9, -63, -10)),
+    tile("20LRR", box(-63, -9, -62, -10)),
+    tile("20LTL", box(-62, -9, -61, -10)),
+    tile("20LUL", box(-61, -9, -60, -10)),
+
+    // L band row 2
+    tile("20LPQ", box(-65, -10, -64, -11)),
+    tile("20LQQ", box(-64, -10, -63, -11)),
+    tile("20LRQ", box(-63, -10, -62, -11)),
+    tile("21LTK", box(-62, -10, -61, -11)),
+
+    // L band row 3
+    tile("20LPP", box(-65, -11, -64, -12)),
+    tile("20LQP", box(-64, -11, -63, -12)),
+    tile("20LRP", box(-63, -11, -62, -12)),
+    tile("21LTJ", box(-62, -11, -61, -12)),
+
+    // L band row 4
+    tile("20LNN", box(-65, -12, -64, -13)),
+    tile("20LPN", box(-64, -12, -63, -13)),
+    tile("20LQN", box(-63, -12, -62, -13)),
+    tile("20LRN", box(-62, -12, -61, -13)),
+
+    // L band row 5
+    tile("20LNM", box(-65, -13, -64, -14)),
+    tile("20LPM", box(-64, -13, -63, -14)),
+    tile("20LQM", box(-63, -13, -62, -14)),
+    tile("20LRM", box(-62, -13, -61, -14)),
+
+    // L band row 6
+    tile("20LNL", box(-65, -14, -64, -15)),
+    tile("20LPL", box(-64, -14, -63, -15)),
+    tile("20LQL", box(-63, -14, -62, -15)),
+    tile("20LRL", box(-62, -14, -61, -15)),
+
+    // L band row 7
+    tile("20LNK", box(-65, -15, -64, -16)),
+    tile("20LPK", box(-64, -15, -63, -16)),
+    tile("20LQK", box(-63, -15, -62, -16)),
+    tile("20LRK", box(-62, -15, -61, -16)),
+
+    // L band row 8
+    tile("20LNJ", box(-65, -16, -64, -17)),
+    tile("20LPJ", box(-64, -16, -63, -17)),
+    tile("20LQJ", box(-63, -16, -62, -17)),
+    tile("20LRJ", box(-62, -16, -61, -17)),
+  ],
+};
+
+// Fine-tune cloned grid placement over India:
+// +LAT moves north, -LON moves west.
+const LAT_OFFSET = 0.8;
+const LON_OFFSET = -0.9;
+const INDIA_SHIFT = { lat: 35.0 + LAT_OFFSET, lon: 139.5 + LON_OFFSET };
+const AUSTRALIA_SHIFT = { lat: -10.0, lon: 201.0 };
+const CHINA_SHIFT = { lat: 39.0, lon: 175.0 };
+const INDIA_CLONE_TILE_IDS = new Set([
+  "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+  "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+  "20LPQ", "20LQQ", "20LRQ", "21LTK",
+  "20LPP", "20LQP", "20LRP", "21LTJ",
+  "20LNN", "20LPN", "20LQN", "20LRN",
+  "20LNM", "20LPM", "20LQM", "20LRM",
+  "20LNL", "20LPL",
+]);
+const AUSTRALIA_CLONE_TILE_IDS = new Set([
+  "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+  "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+  "20LPQ", "20LQQ", "20LRQ", "21LTK",
+  "20LPP", "20LQP", "20LRP", "21LTJ",
+  "20LNN", "20LPN", "20LQN",
+]);
+const CHINA_CLONE_TILE_IDS = new Set([
+  "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+  "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+  "20LPQ", "20LQQ", "20LRQ", "21LTK",
+  "20LPP", "20LQP", "20LRP", "21LTJ",
+  "20LNN", "20LPN", "20LQN", "20LRN",
+  "20LNM", "20LPM", "20LQM", "20LRM",
+  "20LNL", "20LPL", "20LQL", "20LRL",
+  "20LNK", "20LPK",
+]);
+
+function cloneAndShiftFeatureCollection(
+  collection: FeatureCollection,
+  shift: { lat: number; lon: number },
+  filterIds?: Set<string>,
+): FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: collection.features
+      .filter((feature) => {
+        const id = feature.properties?.id;
+        if (!id) return false;
+        if (!filterIds) return true;
+        return filterIds.has(id);
+      })
+      .map((feature) => {
+        if (feature.geometry.type !== "Polygon") return feature;
+        return {
+          ...feature,
+          geometry: {
+            ...feature.geometry,
+            coordinates: feature.geometry.coordinates.map((ring) =>
+              ring.map(([lon, lat]) => [lon + shift.lon, lat + shift.lat]),
+            ),
+          },
+        };
+      }),
+  };
+}
+
+/**
+ * Combined display collection:
+ * 1) Original Rondônia grid (unchanged)
+ * 2) India clone grid over Aravalli region (28 tiles, same IDs)
+ * 3) Australia clone grid over inland Queensland/NSW corridor (21 tiles, same IDs)
+ * 4) China clone grid over inland Gansu/Ningxia corridor (32 tiles, same IDs)
+ */
+export const SENTINEL2_TILES_RONDONIA: FeatureCollection = {
+  type: "FeatureCollection",
+  features: [
+    ...SENTINEL2_TILES_RONDONIA_ORIGINAL.features,
+    ...cloneAndShiftFeatureCollection(
+      SENTINEL2_TILES_RONDONIA_ORIGINAL,
+      INDIA_SHIFT,
+      INDIA_CLONE_TILE_IDS,
+    ).features,
+    ...cloneAndShiftFeatureCollection(
+      SENTINEL2_TILES_RONDONIA_ORIGINAL,
+      AUSTRALIA_SHIFT,
+      AUSTRALIA_CLONE_TILE_IDS,
+    ).features,
+    ...cloneAndShiftFeatureCollection(
+      SENTINEL2_TILES_RONDONIA_ORIGINAL,
+      CHINA_SHIFT,
+      CHINA_CLONE_TILE_IDS,
+    ).features,
+  ],
+};
+
+const TILE_CENTER_BY_ID = new Map<string, { lat: number; lon: number }>();
+
+for (const feature of SENTINEL2_TILES_RONDONIA.features) {
+  const id = feature.properties?.id;
+  if (!id || feature.geometry.type !== "Polygon") continue;
+
+  const ring = feature.geometry.coordinates[0];
+  if (!ring || ring.length === 0) continue;
+
+  const longitudes = ring.map((point) => point[0]);
+  const latitudes = ring.map((point) => point[1]);
+
+  const west = Math.min(...longitudes);
+  const east = Math.max(...longitudes);
+  const south = Math.min(...latitudes);
+  const north = Math.max(...latitudes);
+
+  TILE_CENTER_BY_ID.set(id, {
+    lat: (north + south) / 2,
+    lon: (east + west) / 2,
+  });
+}
+
+export function getTileCenterById(tileId: string): { lat: number; lon: number } | null {
+  return TILE_CENTER_BY_ID.get(tileId) ?? null;
+}
+
+function box(w: number, n: number, e: number, s: number): [number, number][] {
+  return [
+    [w, n],
+    [e, n],
+    [e, s],
+    [w, s],
+  ];
+}
+
+function tile(
+  id: string,
+  corners: [number, number][],
+): GeoJSON.Feature<GeoJSON.Polygon> {
+  return {
+    type: "Feature",
+    properties: { id },
+    geometry: {
+      type: "Polygon",
+      coordinates: [[...corners, corners[0]]],
+    },
+  };
+}

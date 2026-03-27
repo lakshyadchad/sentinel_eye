@@ -7,7 +7,7 @@ export function getJobDate(job: JobHistoryItem) {
 }
 
 export function isCompletedJob(job: JobHistoryItem) {
-  return job.status === "Completed" && !!job.results_summary;
+  return String(job.status).toUpperCase() === "COMPLETED" && !!job.results_summary;
 }
 
 export function isHighSeverityJob(job: JobHistoryItem) {
@@ -32,13 +32,16 @@ export function computeDashboardStats(jobs: JobHistoryItem[]) {
   );
 
   const sevenDaysAgo = Date.now() - 7 * DAY_MS;
-  const recentChanges = completed.reduce((sum, job) => {
+  const recentChangesRaw = completed.reduce((sum, job) => {
     const date = getJobDate(job).getTime();
     if (date >= sevenDaysAgo) {
-      return sum + (job.results_summary?.total_changes || 0);
+      const totalChanges = job.results_summary?.total_changes || 0;
+      if (totalChanges > 0) return sum + totalChanges;
+      return sum + (job.results_summary?.total_area_changed_km2 || 0);
     }
     return sum;
   }, 0);
+  const recentChanges = Math.round(recentChangesRaw);
 
   return {
     totalScans,

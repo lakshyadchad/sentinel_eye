@@ -15,7 +15,7 @@ export default function ScanResultHeader({
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-6 gap-4 border-b border-border/50">
       <div className="flex flex-col">
         <h1 className="text-2xl font-black tracking-tight text-foreground uppercase">
-          Scan Results
+          Results
         </h1>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-wider">

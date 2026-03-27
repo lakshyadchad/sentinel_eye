@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildAwsApiUrl, getAwsBaseUrl } from "@/lib/server/awsProxy";
 
 /**
  * API Route: /api/results/[job_id]
@@ -9,13 +10,8 @@ import { NextResponse } from "next/server";
  * Forwards to: GET https://{base}/api/results/{job_id}
  */
 
-const AWS_API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_AWS_API_BASE ||
-  "https://48ih4pysre.execute-api.us-west-2.amazonaws.com/dev/api";
-
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ job_id: string }> }
 ) {
   try {
@@ -24,7 +20,8 @@ export async function GET(
     console.log(`[API Proxy] /api/results/${job_id} - Forwarding to AWS...`);
 
     // Forward to AWS backend (server-to-server, no CORS issues!)
-    const awsUrl = `${AWS_API_URL}/results/${job_id}`;
+    const awsUrl = buildAwsApiUrl(`/results/${job_id}`);
+    console.log(`[API Proxy] AWS Base URL: ${getAwsBaseUrl()}`);
     console.log(`[API Proxy] GET ${awsUrl}`);
 
     const awsResponse = await fetch(awsUrl, {
@@ -32,6 +29,7 @@ export async function GET(
       headers: {
         "Content-Type": "application/json",
       },
+      cache: "no-store",
     });
 
     if (!awsResponse.ok) {

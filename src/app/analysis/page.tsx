@@ -1,10 +1,9 @@
-"use client";
+﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -16,46 +15,164 @@ import AnalysisHeader from "./components/AnalysisHeader";
 import LeafletMapSelector from "./components/LeafletMapSelector";
 import { useAnalyzeRegion } from "@/hooks/useAnalyzeRegion";
 import { useJobHistory } from "@/hooks/useJobHistory";
-import type { ChangeType } from "@/types/jobs";
+import { getTiles } from "@/lib/api/analyzeService";
+import type { ChangeType, TileInfo } from "@/types/jobs";
+import { SENTINEL2_TILES_RONDONIA } from "@/hooks/sentinel2-rondonia-tiles";
 
 const YEAR_OPTIONS = [2020, 2021, 2022, 2023, 2024];
-const LOCATIONS = [
-  { label: "Porto Velho (Capital)", lat: -8.76, lon: -63.9 },
-  { label: "Ji-Parana", lat: -10.88, lon: -61.95 },
-  { label: "Ariquemes", lat: -9.91, lon: -63.04 },
-  { label: "Cacoal", lat: -11.44, lon: -61.45 },
-  { label: "Vilhena", lat: -12.74, lon: -60.15 },
-  { label: "Pacaas Novos National Park", lat: -10.5, lon: -63.5 },
-];
+const REGION_BOUNDS = {
+  all: { min_lon: -66, min_lat: -28, max_lon: 143, max_lat: 40 },
+  brazil: { min_lon: -66, min_lat: -17.5, max_lon: -58.5, max_lat: -7.5 },
+  india: { min_lon: 73.5, min_lat: 17.0, max_lon: 82.5, max_lat: 28.5 },
+  australia: { min_lon: 135.5, min_lat: -27.5, max_lon: 143.5, max_lat: -17.5 },
+  china: { min_lon: 109.0, min_lat: 21.0, max_lon: 117.0, max_lat: 32.0 },
+} as const;
+
+function getFallbackTiles(): TileInfo[] {
+  const baseTiles = SENTINEL2_TILES_RONDONIA.features
+    .map((feature, index) => {
+      const tileId = feature.properties?.id;
+      if (!tileId || feature.geometry.type !== "Polygon") return null;
+      const ring = feature.geometry.coordinates[0];
+      if (!ring || ring.length === 0) return null;
+
+      const longitudes = ring.map((point) => point[0]);
+      const latitudes = ring.map((point) => point[1]);
+      const min_lon = Math.min(...longitudes);
+      const max_lon = Math.max(...longitudes);
+      const min_lat = Math.min(...latitudes);
+      const max_lat = Math.max(...latitudes);
+
+      return {
+        tile_id: tileId,
+        name: `Tile ${String(index + 1).padStart(2, "0")} - ${tileId}`,
+        center: {
+          lat: (min_lat + max_lat) / 2,
+          lon: (min_lon + max_lon) / 2,
+        },
+        bbox: { min_lon, min_lat, max_lon, max_lat },
+      } satisfies TileInfo;
+    })
+    .filter((tile): tile is TileInfo => Boolean(tile));
+
+  const chinaCloneIds = new Set([
+    "20MPS", "20MQS", "20MRS", "21MTM", "21MUM",
+    "20LPR", "20LQR", "20LRR", "20LTL", "20LUL",
+    "20LPQ", "20LQQ", "20LRQ", "21LTK",
+    "20LPP", "20LQP", "20LRP", "21LTJ",
+    "20LNN", "20LPN", "20LQN", "20LRN",
+    "20LNM", "20LPM", "20LQM", "20LRM",
+    "20LNL", "20LPL", "20LQL", "20LRL",
+    "20LNK", "20LPK",
+  ]);
+  const chinaLatShift = 39;
+  const chinaLonShift = 175;
+
+  const source = baseTiles.filter((tile) => tile.center.lon < -50 && chinaCloneIds.has(tile.tile_id));
+  const chinaTiles = source.map((tile, index) => ({
+    ...tile,
+    name: `China Clone ${String(index + 1).padStart(2, "0")} - ${tile.tile_id}`,
+    center: {
+      lat: tile.center.lat + chinaLatShift,
+      lon: tile.center.lon + chinaLonShift,
+    },
+    bbox: {
+      min_lon: tile.bbox.min_lon + chinaLonShift,
+      min_lat: tile.bbox.min_lat + chinaLatShift,
+      max_lon: tile.bbox.max_lon + chinaLonShift,
+      max_lat: tile.bbox.max_lat + chinaLatShift,
+    },
+  }));
+  const merged = [...baseTiles, ...chinaTiles];
+  const deduped = new Map<string, TileInfo>();
+  for (const tile of merged) {
+    deduped.set(tileKey(tile), tile);
+  }
+  return Array.from(deduped.values());
+}
+
+function tileKey(tile: TileInfo) {
+  return [
+    tile.tile_id,
+    tile.bbox.min_lon,
+    tile.bbox.min_lat,
+    tile.bbox.max_lon,
+    tile.bbox.max_lat,
+  ].join("|");
+}
 
 export default function MapAnalysisPage() {
   const router = useRouter();
   const { run, loading, error } = useAnalyzeRegion();
   const { history } = useJobHistory();
 
-  const [coordinates, setCoordinates] = useState<{ lat: number; lon: number }>(
-    { lat: -10.0, lon: -63.0 },
-  );
-  const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>(
-    { lat: -10.0, lon: -63.0 },
-  );
+  const [tiles, setTiles] = useState<TileInfo[]>(() => getFallbackTiles());
+  const [tilesLoading, setTilesLoading] = useState(false);
+
+  const [selectedTileId, setSelectedTileId] = useState<string>("");
+  const [selectedTileBounds, setSelectedTileBounds] = useState<TileInfo["bbox"] | null>(null);
+  const [focusBounds, setFocusBounds] = useState<TileInfo["bbox"] | null>(REGION_BOUNDS.all);
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number } | null>({
+    lat: 3.0,
+    lon: 20.0,
+  });
+
   const [startYear, setStartYear] = useState(2021);
   const [endYear, setEndYear] = useState(2024);
   const [changeTypes, setChangeTypes] = useState<ChangeType[]>([
     "deforestation",
     "urban_expansion",
   ]);
-  const [selectedLocation, setSelectedLocation] = useState("custom");
 
-  const isValidCoords =
-    coordinates.lat >= -90 &&
-    coordinates.lat <= 90 &&
-    coordinates.lon >= -180 &&
-    coordinates.lon <= 180;
+  useEffect(() => {
+    let mounted = true;
 
-  const canSubmit =
-    isValidCoords && changeTypes.length > 0 && endYear >= startYear;
+    const loadTiles = async () => {
+      try {
+        setTilesLoading(true);
+        const data = await getTiles();
+        if (!mounted) return;
+        if (Array.isArray(data.tiles) && data.tiles.length > 0) {
+          setTiles((prev) => {
+            const merged = [...prev];
+            const seen = new Set(prev.map(tileKey));
+            for (const tile of data.tiles) {
+              const key = tileKey(tile);
+              if (!seen.has(key)) {
+                seen.add(key);
+                merged.push(tile);
+              }
+            }
+            return merged;
+          });
+        }
+      } catch {
+        // Keep local tiles silently if API tiles are unavailable in this deployment.
+      } finally {
+        if (mounted) setTilesLoading(false);
+      }
+    };
 
+    loadTiles();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const selectableTiles = useMemo(() => {
+    const unique = new Map<string, TileInfo>();
+    for (const tile of tiles) {
+      if (!unique.has(tile.tile_id)) unique.set(tile.tile_id, tile);
+    }
+    return Array.from(unique.values());
+  }, [tiles]);
+
+  const selectedTile = useMemo(
+    () => selectableTiles.find((tile) => tile.tile_id === selectedTileId) || null,
+    [selectableTiles, selectedTileId],
+  );
+
+  const canSubmit = !!selectedTile && changeTypes.length > 0 && endYear >= startYear;
   const recentJobs = useMemo(() => history.slice(0, 6), [history]);
 
   const toggleChangeType = (value: ChangeType) => {
@@ -66,115 +183,123 @@ export default function MapAnalysisPage() {
     );
   };
 
+  const handleTileSelectById = (tileId: string) => {
+    setSelectedTileId(tileId);
+    const tile = selectableTiles.find((item) => item.tile_id === tileId);
+    if (tile) {
+      setMapCenter(tile.center);
+      setSelectedTileBounds(tile.bbox);
+      setFocusBounds(null);
+    }
+  };
+
+  const handleTileSelectFromMap = (tile: TileInfo) => {
+    setSelectedTileId(tile.tile_id);
+    setMapCenter(tile.center);
+    setSelectedTileBounds(tile.bbox);
+    setFocusBounds(null);
+  };
+
   const handleSubmit = async () => {
-    if (!canSubmit || loading) return;
+    if (!selectedTile || !canSubmit || loading) return;
+
     const res = await run({
-      coordinates,
+      tile_id: selectedTile.tile_id,
       start_year: startYear,
       end_year: endYear,
       change_types: changeTypes,
     });
+
     router.push(`/scan-result?job_id=${res.job_id}`);
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      <header className="sticky top-[80px] z-[50] bg-background/80 backdrop-blur-md border-b border-border/50">
-        <div className="container mx-auto px-6 py-4">
-          <AnalysisHeader />
-        </div>
-      </header>
+    <div className="text-foreground transition-colors duration-300">
+      <div className="container mx-auto px-6 py-4">
+        <AnalysisHeader />
+      </div>
 
-      <main className="container mx-auto px-6 py-8">
+      <div className="container mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-6">
+            <LeafletMapSelector
+              tiles={tiles}
+              selectedTileId={selectedTileId}
+              selectedTileBounds={selectedTileBounds}
+              focusBounds={focusBounds}
+              onTileSelect={handleTileSelectFromMap}
+              center={selectedTile?.center ?? mapCenter}
+            />
+
             <Card className="p-4 rounded-2xl border border-border shadow-sm">
-              <div className="flex flex-col gap-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
-                  Popular Locations
-                </p>
-                <Select
-                  value={selectedLocation}
-                  onValueChange={(value) => {
-                    setSelectedLocation(value);
-                    if (value === "custom") return;
-                    const match = LOCATIONS.find(
-                      (item) => item.label === value,
-                    );
-                    if (!match) return;
-                    const next = { lat: match.lat, lon: match.lon };
-                    setCoordinates(next);
-                    setMapCenter(next);
-                  }}
-                >
-                  <SelectTrigger className="w-full rounded-xl bg-background">
-                    <SelectValue placeholder="Select a location" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LOCATIONS.map((loc) => (
-                      <SelectItem key={loc.label} value={loc.label}>
-                        {loc.label}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="custom">Custom (map or manual)</SelectItem>
-                  </SelectContent>
-                </Select>
+              <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground mb-3">
+                Region Focus
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { label: "All Regions", key: "all" },
+                    { label: "Rondonia", key: "brazil" },
+                    { label: "Aravalli", key: "india" },
+                    { label: "Australia", key: "australia" },
+                    { label: "China", key: "china" },
+                  ] as const
+                ).map((item) => (
+                  <Button
+                    key={item.key}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedTileBounds(null);
+                      setFocusBounds(REGION_BOUNDS[item.key]);
+                    }}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
               </div>
             </Card>
-
-            <LeafletMapSelector
-              value={coordinates}
-              onChange={(next) => {
-                setCoordinates(next);
-                setMapCenter(next);
-                setSelectedLocation("custom");
-              }}
-              center={mapCenter}
-            />
 
             <Card className="p-6 rounded-2xl border border-border shadow-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] font-bold text-muted-foreground">
-                    Coordinates
+                    Sentinel-2 Tile
                   </p>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <Input
-                      value={coordinates.lat}
-                      onChange={(e) => {
-                        const lat = Number(e.target.value);
-                        const next = { ...coordinates, lat };
-                        setCoordinates(next);
-                        setMapCenter(next);
-                        setSelectedLocation("custom");
-                      }}
-                      type="number"
-                      step="0.0001"
-                      placeholder="Latitude"
-                    />
-                    <Input
-                      value={coordinates.lon}
-                      onChange={(e) => {
-                        const lon = Number(e.target.value);
-                        const next = { ...coordinates, lon };
-                        setCoordinates(next);
-                        setMapCenter(next);
-                        setSelectedLocation("custom");
-                      }}
-                      type="number"
-                      step="0.0001"
-                      placeholder="Longitude"
-                    />
+                  <div className="mt-3">
+                    <Select
+                      value={selectedTileId}
+                      onValueChange={handleTileSelectById}
+                      disabled={tilesLoading || tiles.length === 0}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={tilesLoading ? "Loading tiles..." : "Select a tile"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectableTiles.map((tile) => (
+                          <SelectItem key={tile.tile_id} value={tile.tile_id}>
+                            {tile.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Not sure where to start? Select a popular location above or
-                    click anywhere on the map. Try Porto Velho (-8.76, -63.90)
-                    or Pacaas Novos Park (-10.50, -63.50).
-                  </p>
-                  {!isValidCoords && (
-                    <p className="text-xs text-red-500 mt-2">
-                      Please enter valid latitude/longitude values.
+
+                  {selectedTile ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Selected: {selectedTile.tile_id}. You can also click a tile directly on the map.
                     </p>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Choose one tile from dropdown or map.
+                    </p>
+                  )}
+
+                  {!selectedTile && !tilesLoading && (
+                    <p className="text-xs text-red-500 mt-2">Select a tile.</p>
                   )}
                 </div>
 
@@ -185,9 +310,7 @@ export default function MapAnalysisPage() {
                   <div className="mt-3 grid grid-cols-2 gap-3">
                     <Select
                       value={String(startYear)}
-                      onValueChange={(value) =>
-                        setStartYear(Number(value))
-                      }
+                      onValueChange={(value) => setStartYear(Number(value))}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Start year" />
@@ -200,6 +323,7 @@ export default function MapAnalysisPage() {
                         ))}
                       </SelectContent>
                     </Select>
+
                     <Select
                       value={String(endYear)}
                       onValueChange={(value) => setEndYear(Number(value))}
@@ -216,6 +340,7 @@ export default function MapAnalysisPage() {
                       </SelectContent>
                     </Select>
                   </div>
+
                   {endYear < startYear && (
                     <p className="text-xs text-red-500 mt-2">
                       End year must be greater than or equal to start year.
@@ -254,23 +379,14 @@ export default function MapAnalysisPage() {
 
               <div className="mt-6 flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="text-xs text-muted-foreground">
-                  Submit to backend job queue. Results will appear once the job
-                  completes.
+                  Select tile, years, and change types. Backend processing starts after submission.
                 </div>
-                <Button
-                  disabled={!canSubmit || loading}
-                  onClick={handleSubmit}
-                  className="px-6"
-                >
+                <Button disabled={!canSubmit || loading} onClick={handleSubmit} className="px-6">
                   {loading ? "Submitting..." : "Submit Analysis"}
                 </Button>
               </div>
 
-              {error && (
-                <div className="mt-4 text-sm text-red-500 font-medium">
-                  {error}
-                </div>
-              )}
+              {error && <div className="mt-4 text-sm text-red-500 font-medium">{error}</div>}
             </Card>
           </div>
 
@@ -288,9 +404,7 @@ export default function MapAnalysisPage() {
                   recentJobs.map((job) => (
                     <button
                       key={job.job_id}
-                      onClick={() =>
-                        router.push(`/scan-result?job_id=${job.job_id}`)
-                      }
+                      onClick={() => router.push(`/scan-result?job_id=${job.job_id}`)}
                       className="w-full text-left rounded-xl border border-border bg-muted/30 px-4 py-3 hover:bg-muted/50 transition"
                     >
                       <div className="flex items-center justify-between">
@@ -302,9 +416,11 @@ export default function MapAnalysisPage() {
                         </span>
                       </div>
                       <div className="mt-2 text-xs text-muted-foreground">
-                        {job.coordinates.lat.toFixed(2)},{" "}
-                        {job.coordinates.lon.toFixed(2)} • {job.start_year}→
-                        {job.end_year}
+                        {job.tile_ids && job.tile_ids.length > 0
+                          ? job.tile_ids.join(", ")
+                          : `${job.coordinates.lat.toFixed(2)}, ${job.coordinates.lon.toFixed(2)}`} 
+                        {" - "}
+                        {job.start_year} to {job.end_year}
                       </div>
                     </button>
                   ))
@@ -313,7 +429,8 @@ export default function MapAnalysisPage() {
             </Card>
           </aside>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
+

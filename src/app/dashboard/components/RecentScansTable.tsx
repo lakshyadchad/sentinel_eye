@@ -15,22 +15,23 @@ export default function RecentScansTable() {
           Recent Jobs
         </p>
       </div>
+
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             <tr>
               <th className="px-6 py-4 text-left">Job ID</th>
-              <th className="px-6 py-4 text-left">Coordinates</th>
               <th className="px-6 py-4 text-left">Status</th>
               <th className="px-6 py-4 text-left">Range</th>
               <th className="px-6 py-4 text-left">Action</th>
             </tr>
           </thead>
+
           <tbody className="divide-y divide-border">
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={4}  // ← changed from 5 to 4
                   className="px-6 py-8 text-center text-xs text-muted-foreground"
                 >
                   No jobs yet. Start a new analysis to populate this table.
@@ -45,18 +46,17 @@ export default function RecentScansTable() {
                   <td className="px-6 py-4 font-mono text-xs font-bold text-primary italic">
                     {job.job_id}
                   </td>
-                  <td className="px-6 py-4 text-foreground/80 font-medium">
-                    {job.coordinates.lat.toFixed(3)},{" "}
-                    {job.coordinates.lon.toFixed(3)}
-                  </td>
+
                   <td className="px-6 py-4">
                     <Badge variant="outline" className="text-[10px]">
                       {job.status}
                     </Badge>
                   </td>
+
                   <td className="px-6 py-4 text-xs text-muted-foreground">
                     {job.start_year} → {job.end_year}
                   </td>
+
                   <td className="px-6 py-4">
                     <Link
                       href={`/scan-result?job_id=${job.job_id}`}

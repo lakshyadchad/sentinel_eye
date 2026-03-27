@@ -39,15 +39,11 @@ export default function LeafletMapClient({
       isInitializing.current = true;
 
       try {
-        // Check if container already has a map instance
         const container = mapRef.current;
 
         // Remove any existing Leaflet instance from this container
         if ((container as any)._leaflet_id) {
-          // Try to find and remove the old map
           try {
-            const oldMapId = (container as any)._leaflet_id;
-            // Clear the leaflet id
             delete (container as any)._leaflet_id;
           } catch (e) {
             console.warn("Could not clean up old map:", e);
@@ -59,22 +55,25 @@ export default function LeafletMapClient({
           [-13.5, -66.5], // Southwest corner
           [-8.0, -59.5]   // Northeast corner
         );
-        
+
         const map = L.map(container, {
           zoomControl: false,
-          attributionControl: false,
-          maxBounds: rondoniaBounds,        // Restrict panning to Rondônia
-          minZoom: 6,                       // Prevent zooming out too far
-          maxZoom: 19,
-        }).setView([-10.5, -63.0], 7);      // Center on Rondônia with zoom level 7
+          attributionControl: true,
+          maxBounds: rondoniaBounds,
+          minZoom: 6,
+          maxZoom: 15, // Sentinel-2 cloudless max supported zoom
+        }).setView([-10.5, -63.0], 7);
 
         mapInstance.current = map;
 
+        // Sentinel-2 Cloudless mosaic by EOX — true 10m resolution satellite imagery
         L.tileLayer(
-          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/GoogleMapsCompatible/{z}/{y}/{x}.jpg",
           {
-            maxZoom: 19,
-          },
+            maxZoom: 15,
+            attribution:
+              '&copy; <a href="https://s2maps.eu">Sentinel-2 cloudless</a> by <a href="https://eox.at">EOX</a>',
+          }
         ).addTo(map);
 
         // Add custom zoom controls
@@ -116,7 +115,7 @@ export default function LeafletMapClient({
       }
       isInitializing.current = false;
     };
-  }, []); // Empty dependency array - initialize only once
+  }, []);
 
   // Handle drawing mode separately
   useEffect(() => {
@@ -129,18 +128,15 @@ export default function LeafletMapClient({
     const handleMouseDown = (e: any) => {
       if (!drawingMode) return;
 
-      // Prevent map panning while drawing
       map.dragging.disable();
       map.doubleClickZoom.disable();
 
       startPointRef.current = e.latlng;
 
-      // Remove existing rectangle if any
       if (rectangleRef.current) {
         map.removeLayer(rectangleRef.current);
       }
 
-      // Create new rectangle
       rectangleRef.current = L.rectangle([e.latlng, e.latlng], {
         color: "#3b82f6",
         weight: 2,
@@ -153,7 +149,7 @@ export default function LeafletMapClient({
       if (!startPointRef.current || !rectangleRef.current || !drawingMode)
         return;
       rectangleRef.current.setBounds(
-        L.latLngBounds(startPointRef.current, e.latlng),
+        L.latLngBounds(startPointRef.current, e.latlng)
       );
     };
 
@@ -163,7 +159,6 @@ export default function LeafletMapClient({
 
       const bounds = rectangleRef.current.getBounds();
 
-      // Only save if the rectangle has some area
       const north = bounds.getNorth();
       const south = bounds.getSouth();
       const east = bounds.getEast();
@@ -173,7 +168,6 @@ export default function LeafletMapClient({
         onBboxChangeRef.current({ north, south, east, west });
         setHasSelection(true);
       } else {
-        // Remove tiny rectangles
         if (rectangleRef.current) {
           map.removeLayer(rectangleRef.current);
           rectangleRef.current = null;
@@ -182,7 +176,6 @@ export default function LeafletMapClient({
 
       startPointRef.current = null;
 
-      // Re-enable map controls
       map.dragging.enable();
       map.doubleClickZoom.enable();
 
@@ -200,7 +193,6 @@ export default function LeafletMapClient({
       map.off("mouseup", handleMouseUp);
       map.getContainer().style.cursor = "grab";
 
-      // Re-enable map controls when not drawing
       map.dragging.enable();
       map.doubleClickZoom.enable();
     }
@@ -217,18 +209,15 @@ export default function LeafletMapClient({
     if (!mapInstance.current) return;
 
     const handleResize = () => {
-      // Use setTimeout to ensure DOM has updated after sidebar animation
       setTimeout(() => {
         if (mapInstance.current) {
           mapInstance.current.invalidateSize();
         }
-      }, 350); // Slightly longer than sidebar transition (300ms)
+      }, 350);
     };
 
-    // Listen for window resize
     window.addEventListener("resize", handleResize);
 
-    // Create a ResizeObserver to watch for container size changes
     let resizeObserver: ResizeObserver | null = null;
     if (mapRef.current) {
       resizeObserver = new ResizeObserver(() => {
@@ -237,7 +226,6 @@ export default function LeafletMapClient({
       resizeObserver.observe(mapRef.current);
     }
 
-    // Also invalidate size when component mounts
     handleResize();
 
     return () => {

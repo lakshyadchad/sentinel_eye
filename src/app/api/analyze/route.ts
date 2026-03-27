@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { buildAwsApiUrl, getAwsBaseUrl } from "@/lib/server/awsProxy";
 
 /**
  * API Route: /api/analyze
@@ -8,11 +9,6 @@ import { NextResponse } from "next/server";
  * forwards the request to AWS (server-to-server has no CORS restrictions)
  */
 
-const AWS_API_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_AWS_API_BASE ||
-  "https://48ih4pysre.execute-api.us-west-2.amazonaws.com/dev/api";
-
 export async function POST(req: Request) {
   try {
     console.log("[API Proxy] /api/analyze - Forwarding to AWS backend...");
@@ -20,11 +16,23 @@ export async function POST(req: Request) {
     // Get the request body from the frontend
     const body = await req.json();
     console.log("[API Proxy] Request body:", body);
+    if (
+      !Array.isArray(body?.tile_ids) ||
+      body.tile_ids.length === 0 ||
+      body.tile_ids.some((id: unknown) => typeof id !== "string" || id.trim().length === 0)
+    ) {
+      return NextResponse.json(
+        { error: "Invalid request: tile_ids must be a non-empty array of strings" },
+        { status: 400 },
+      );
+    }
 
     // Forward to AWS backend (server-to-server, no CORS issues!)
-    console.log(`[API Proxy] POST ${AWS_API_URL}/analyze`);
+    const awsUrl = buildAwsApiUrl("/analyze");
+    console.log(`[API Proxy] AWS Base URL: ${getAwsBaseUrl()}`);
+    console.log(`[API Proxy] POST ${awsUrl}`);
 
-    const awsResponse = await fetch(`${AWS_API_URL}/analyze`, {
+    const awsResponse = await fetch(awsUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
