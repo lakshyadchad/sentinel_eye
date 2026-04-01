@@ -1,3 +1,5 @@
+"use client";
+
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { ChangeType } from "@/types/jobs";
@@ -13,7 +15,6 @@ function formatMinutes(start?: string, end?: string) {
 
 export default function JobSummaryPanel({
   jobId,
-  coordinates,
   startYear,
   endYear,
   changeTypes,
@@ -23,7 +24,6 @@ export default function JobSummaryPanel({
   changesByType,
 }: {
   jobId: string;
-  coordinates?: { lat: number; lon: number };
   startYear?: number;
   endYear?: number;
   changeTypes?: ChangeType[];
@@ -36,14 +36,8 @@ export default function JobSummaryPanel({
     encroachment: number;
   };
 }) {
-  const locationLabel =
-    coordinates && typeof coordinates.lat === "number"
-      ? `${coordinates.lat.toFixed(3)}, ${coordinates.lon.toFixed(3)}`
-      : "Unknown";
-
   const periodLabel =
-    startYear && endYear ? `${startYear} -> ${endYear}` : "Unknown";
-
+    startYear && endYear ? `${startYear} → ${endYear}` : "Unknown";
   const types = changeTypes && changeTypes.length > 0 ? changeTypes : [];
 
   return (
@@ -52,9 +46,6 @@ export default function JobSummaryPanel({
         <div className="space-y-1">
           <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
             Analysis Summary
-          </p>
-          <p className="text-lg font-semibold text-foreground">
-            Location: {locationLabel}
           </p>
           <p className="text-xs text-muted-foreground">
             Time period: {periodLabel}
@@ -86,6 +77,7 @@ export default function JobSummaryPanel({
             ))
           )}
         </div>
+
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-muted-foreground">
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] font-bold">
@@ -95,6 +87,7 @@ export default function JobSummaryPanel({
               {totalChanges ?? 0}
             </p>
           </div>
+
           <div>
             <p className="text-[10px] uppercase tracking-[0.2em] font-bold">
               Changes by Type

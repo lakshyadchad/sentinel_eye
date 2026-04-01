@@ -64,7 +64,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     [pathname]
   );
 
-  // Set active underline position
   useEffect(() => {
     const activeIndex = navItems.findIndex((item) => isActive(item.href));
     if (activeIndex !== -1 && navRef.current) {
@@ -107,6 +106,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     setHoverStyle((prev) => ({ ...prev, opacity: 0 }));
   };
 
+  // Don't show AppShell on landing page
   if (pathname === "/") {
     return <>{children}</>;
   }
@@ -117,8 +117,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <header className="fixed top-0 left-0 right-0 z-30 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         {/* Top row: Logo + Controls */}
         <div className="flex items-center h-16 px-6">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
+          {/* Logo + Heading – now clickable */}
+          <Link href="/" className="flex items-center gap-3 hover:opacity-90 transition-opacity">
             <div className="relative w-10 h-10">
               <Image
                 src="/logo.png"
@@ -131,11 +131,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <h1 className="text-lg md:text-xl font-black tracking-[0.25em] text-primary">
               SENTINEL EYE
             </h1>
-          </div>
+          </Link>
 
           <div className="flex-1" />
 
-          {/* Controls – unchanged position */}
+          {/* Controls */}
           <div className="flex items-center gap-3 text-sm">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border bg-muted/40">
               <button
@@ -163,7 +163,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
             </div>
 
-            {/* User Dropdown – unchanged */}
+            {/* User Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -207,14 +207,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        {/* Bottom row: Navigation tabs – Vercel-style hover pill */}
+        {/* Bottom row: Navigation tabs */}
         <div className="px-6 border-t border-border/50">
           <nav
             ref={navRef}
             className="relative flex items-center gap-1 h-12 -mx-1"
             onMouseLeave={handleMouseLeave}
           >
-            {/* Hover pill – more Vercel-like (softer, slightly taller, better rounding) */}
+            {/* Hover pill */}
             <div
               className="absolute top-1.5 h-9 rounded-full bg-accent/70 dark:bg-muted/70 transition-all duration-200 ease-out pointer-events-none shadow-sm"
               style={{
@@ -227,7 +227,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {navItems.map((item, index) => {
               const Icon = item.icon;
               const active = isActive(item.href);
-
               return (
                 <Link
                   key={item.href}
@@ -253,7 +252,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
 
-            {/* Active underline – thin primary line */}
+            {/* Active underline */}
             <div
               className="absolute bottom-0 h-[2.5px] bg-primary transition-all duration-300 ease-out pointer-events-none rounded-full"
               style={{

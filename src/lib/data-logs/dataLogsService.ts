@@ -9,7 +9,8 @@ export function getFilteredLogs(filters: DataLogsFilters): JobHistoryItem[] {
 
   // filter status
   if (filters.status !== "ALL") {
-    logs = logs.filter((s) => s.status === filters.status);
+    const target = String(filters.status).toUpperCase();
+    logs = logs.filter((s) => String(s.status).toUpperCase() === target);
   }
 
   // search query
