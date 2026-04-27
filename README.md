@@ -428,7 +428,8 @@ MIT License - see [LICENSE](LICENSE) file
 
 **Backend Development:**
 - AWS infrastructure, Lambda, EC2 processing
-
+- Lakshya Sharma - https://github.com/lakshyadchad
+- Aditya Chooramani - 
 ---
 
 ## 🙏 Acknowledgments
